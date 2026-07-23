@@ -1,98 +1,212 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
+import { useMemo, useState } from 'react';
+import { FlatList, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
+import { AnimatedPressable } from '@/components/animated-pressable';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { Colors } from '@/constants/theme';
+import { useThemeMode } from '@/contexts/theme-context';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useResponsive } from '@/hooks/use-responsive';
+import { LANGUAGES, type ProgrammingLanguage } from '@/data/languages';
 
-export default function HomeScreen() {
+export default function CatalogScreen() {
+  const colorScheme = useColorScheme() ?? 'light';
+  const palette = Colors[colorScheme];
+  const { toggleColorScheme } = useThemeMode();
+  const { numColumns } = useResponsive();
+  const [query, setQuery] = useState('');
+
+  const results = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return LANGUAGES;
+    return LANGUAGES.filter((lang) => lang.name.toLowerCase().includes(normalized));
+  }, [query]);
+
+  const handleToggleTheme = () => {
+    if (Platform.OS !== 'web') Haptics.selectionAsync();
+    toggleColorScheme();
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]} edges={['top']}>
+      <View style={styles.centerWrap}>
+        <View style={styles.header}>
+          <Image source={require('@/assets/images/icon.png')} style={styles.headerLogo} contentFit="cover" />
+          <View style={styles.headerText}>
+            <ThemedText type="title">Catálogo de Lenguajes</ThemedText>
+            <ThemedText style={{ opacity: 0.7 }}>Historia, fundadores y primeros pasos</ThemedText>
+          </View>
+          <Pressable
+            onPress={handleToggleTheme}
+            hitSlop={8}
+            style={[styles.themeToggle, { borderColor: colorScheme === 'dark' ? '#2a2d2e' : '#ececec' }]}>
+            <Ionicons name={colorScheme === 'dark' ? 'moon' : 'sunny'} size={18} color={palette.tint} />
+          </Pressable>
+        </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
+        <View style={[styles.searchBar, { borderColor: palette.icon }]}>
+          <Ionicons name="search" size={18} color={palette.icon} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Buscar lenguaje..."
+            placeholderTextColor={palette.icon}
+            style={[styles.searchInput, { color: palette.text }]}
+          />
+        </View>
+
+        <ThemedText style={styles.resultsCount}>
+          {results.length} {results.length === 1 ? 'lenguaje' : 'lenguajes'}
         </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      </View>
+
+      <FlatList
+        key={numColumns}
+        data={results}
+        numColumns={numColumns}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.list}
+        columnWrapperStyle={numColumns > 1 ? styles.row : undefined}
+        renderItem={({ item, index }) => (
+          <LanguageCard language={item} index={index} flex={numColumns > 1} />
+        )}
+        ListEmptyComponent={
+          <ThemedText style={{ textAlign: 'center', marginTop: 32, opacity: 0.6 }}>
+            No se encontró ningún lenguaje. Intenta con otro nombre.
+          </ThemedText>
+        }
+      />
+    </SafeAreaView>
+  );
+}
+
+function LanguageCard({ language, index, flex }: { language: ProgrammingLanguage; index: number; flex: boolean }) {
+  const colorScheme = useColorScheme() ?? 'light';
+  const palette = Colors[colorScheme];
+  const router = useRouter();
+
+  const handlePress = () => {
+    if (Platform.OS !== 'web') {
+      Haptics.selectionAsync();
+    }
+    router.push(`/language/${language.id}`);
+  };
+
+  return (
+    <Animated.View entering={FadeInDown.delay(Math.min(index, 10) * 40).duration(300)} style={flex ? { flex: 1 } : undefined}>
+      <AnimatedPressable onPress={handlePress} style={styles.card}>
+        <ThemedView style={[styles.cardInner, { borderColor: colorScheme === 'dark' ? '#2a2d2e' : '#ececec' }]}>
+          <View style={[styles.badge, { backgroundColor: language.color }]}>
+            <ThemedText style={styles.badgeText} lightColor="#111" darkColor="#111">
+              {language.name.slice(0, 2).toUpperCase()}
+            </ThemedText>
+          </View>
+          <View style={styles.cardBody}>
+            <ThemedText type="defaultSemiBold">{language.name}</ThemedText>
+            <ThemedText style={{ opacity: 0.7 }} numberOfLines={2}>
+              {language.tagline}
+            </ThemedText>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={palette.icon} />
+        </ThemedView>
+      </AnimatedPressable>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  safeArea: {
+    flex: 1,
+  },
+  centerWrap: {
+    width: '100%',
+    alignSelf: 'center',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 16,
+  },
+  headerLogo: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+  },
+  headerText: {
+    flex: 1,
+    gap: 2,
+  },
+  themeToggle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  stepContainer: {
-    gap: 8,
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+  },
+  resultsCount: {
+    paddingHorizontal: 16,
     marginBottom: 8,
+    opacity: 0.5,
+    fontSize: 13,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  list: {
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+    gap: 10,
+  },
+  row: {
+    gap: 10,
+  },
+  card: {
+    borderRadius: 14,
+  },
+  cardInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  badge: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  cardBody: {
+    flex: 1,
+    gap: 2,
   },
 });
