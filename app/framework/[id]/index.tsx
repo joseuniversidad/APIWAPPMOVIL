@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { AnimatedPressable } from '@/components/animated-pressable';
@@ -11,10 +11,14 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { getFrameworkById } from '@/data/frameworks';
+import { FRAMEWORK_GITHUB_REPOS } from '@/data/github-repos';
 import { getLanguageById } from '@/data/languages';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useGithubRepo } from '@/hooks/use-github-repo';
 import { useResponsive } from '@/hooks/use-responsive';
 import { youtubeSearchUrl } from '@/utils/external-links';
+
+const compactNumber = new Intl.NumberFormat('es', { notation: 'compact' });
 
 export default function FrameworkDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -23,6 +27,7 @@ export default function FrameworkDetailScreen() {
   const palette = Colors[colorScheme];
   const router = useRouter();
   const { contentMaxWidth } = useResponsive();
+  const githubState = useGithubRepo(framework ? FRAMEWORK_GITHUB_REPOS[framework.id] : undefined);
 
   if (!framework) {
     return (
@@ -34,6 +39,12 @@ export default function FrameworkDetailScreen() {
   }
 
   const language = getLanguageById(framework.languageId);
+
+  const openRepo = async () => {
+    if (githubState.status !== 'success') return;
+    if (Platform.OS !== 'web') Haptics.selectionAsync();
+    await WebBrowser.openBrowserAsync(githubState.data.url);
+  };
 
   const openDocs = async () => {
     if (Platform.OS !== 'web') Haptics.selectionAsync();
@@ -86,6 +97,25 @@ export default function FrameworkDetailScreen() {
           <InfoPill icon="calendar-outline" label="Año" value={String(framework.year)} />
           <InfoPill icon="person-outline" label="Creado por" value={framework.creator} />
         </View>
+
+        <ThemedView style={styles.card}>
+          <View style={styles.cardTitleRow}>
+            <Ionicons name="logo-github" size={18} color={palette.tint} />
+            <ThemedText type="subtitle">En GitHub ahora mismo</ThemedText>
+          </View>
+
+          {githubState.status === 'loading' ? (
+            <ActivityIndicator style={{ marginVertical: 6 }} color={palette.tint} />
+          ) : githubState.status === 'error' ? (
+            <ThemedText style={{ opacity: 0.6 }}>{githubState.message}</ThemedText>
+          ) : (
+            <AnimatedPressable onPress={openRepo} style={styles.githubStatsRow}>
+              <GithubStat icon="star" value={compactNumber.format(githubState.data.stars)} label="Estrellas" />
+              <GithubStat icon="git-network" value={compactNumber.format(githubState.data.forks)} label="Forks" />
+              <GithubStat icon="alert-circle" value={compactNumber.format(githubState.data.openIssues)} label="Issues" />
+            </AnimatedPressable>
+          )}
+        </ThemedView>
 
         <ThemedView style={styles.card}>
           <View style={styles.cardTitleRow}>
@@ -151,6 +181,18 @@ export default function FrameworkDetailScreen() {
   );
 }
 
+function GithubStat({ icon, value, label }: { icon: keyof typeof Ionicons.glyphMap; value: string; label: string }) {
+  const colorScheme = useColorScheme() ?? 'light';
+  const palette = Colors[colorScheme];
+  return (
+    <View style={styles.githubStat}>
+      <Ionicons name={icon} size={16} color={palette.icon} />
+      <ThemedText type="defaultSemiBold">{value}</ThemedText>
+      <ThemedText style={{ fontSize: 11, opacity: 0.6 }}>{label}</ThemedText>
+    </View>
+  );
+}
+
 function InfoPill({ icon, label, value }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string }) {
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
@@ -205,6 +247,15 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
+  },
+  githubStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 4,
+  },
+  githubStat: {
+    alignItems: 'center',
+    gap: 2,
   },
   infoRow: {
     flexDirection: 'row',
