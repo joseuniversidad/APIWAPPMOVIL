@@ -11,14 +11,14 @@ import { BackButton } from '@/components/back-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
-import { getFrameworksByLanguage } from '@/data/frameworks';
-import { getLanguageById } from '@/data/languages';
+import { useCatalog } from '@/contexts/catalog-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useResponsive } from '@/hooks/use-responsive';
 import { youtubeSearchUrl } from '@/utils/external-links';
 
 export default function LanguageDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { getLanguageById, getFrameworksByLanguage } = useCatalog();
   const language = getLanguageById(id);
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
@@ -148,6 +148,24 @@ export default function LanguageDetailScreen() {
             <Ionicons name="school-outline" size={18} color={colorScheme === 'dark' ? '#000' : '#fff'} />
             <ThemedText type="defaultSemiBold" lightColor="#fff" darkColor="#000">
               Aprende paso a paso
+            </ThemedText>
+          </AnimatedPressable>
+
+          <AnimatedPressable
+            onPress={() => goTo(`/language/${language.id}/quiz`)}
+            style={[styles.actionButton, styles.secondaryButton, { borderColor: palette.tint }]}>
+            <Ionicons name="help-circle-outline" size={18} color={palette.tint} />
+            <ThemedText type="defaultSemiBold" style={{ color: palette.tint }}>
+              Hacer el quiz
+            </ThemedText>
+          </AnimatedPressable>
+
+          <AnimatedPressable
+            onPress={() => goTo(`/asistente?lenguaje=${language.id}`)}
+            style={[styles.actionButton, styles.secondaryButton, { borderColor: palette.tint }]}>
+            <Ionicons name="sparkles-outline" size={18} color={palette.tint} />
+            <ThemedText type="defaultSemiBold" style={{ color: palette.tint }}>
+              Preguntar a la IA
             </ThemedText>
           </AnimatedPressable>
 

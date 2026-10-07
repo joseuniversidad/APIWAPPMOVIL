@@ -36,9 +36,15 @@ async function removeChunked(key: string): Promise<void> {
   await SecureStore.deleteItemAsync(`${key}_n`);
 }
 
+// Al exportar la web las páginas se renderizan en Node, donde no existe `window`:
+// ahí no hay sesión que leer ni guardar.
+const isServer = Platform.OS === 'web' && typeof window === 'undefined';
+
 export const sessionStorage = {
-  getItem: (key: string) => (Platform.OS === 'web' ? AsyncStorage.getItem(key) : getChunked(key)),
+  getItem: (key: string) =>
+    isServer ? Promise.resolve(null) : Platform.OS === 'web' ? AsyncStorage.getItem(key) : getChunked(key),
   setItem: (key: string, value: string) =>
-    Platform.OS === 'web' ? AsyncStorage.setItem(key, value) : setChunked(key, value),
-  removeItem: (key: string) => (Platform.OS === 'web' ? AsyncStorage.removeItem(key) : removeChunked(key)),
+    isServer ? Promise.resolve() : Platform.OS === 'web' ? AsyncStorage.setItem(key, value) : setChunked(key, value),
+  removeItem: (key: string) =>
+    isServer ? Promise.resolve() : Platform.OS === 'web' ? AsyncStorage.removeItem(key) : removeChunked(key),
 };

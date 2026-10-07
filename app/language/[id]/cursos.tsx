@@ -10,12 +10,13 @@ import { BackButton } from '@/components/back-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
-import { getLanguageById } from '@/data/languages';
+import { useCatalog } from '@/contexts/catalog-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useResponsive } from '@/hooks/use-responsive';
 
 export default function CoursesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { getLanguageById } = useCatalog();
   const language = getLanguageById(id);
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];

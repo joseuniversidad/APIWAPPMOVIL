@@ -9,11 +9,10 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
+import { useCatalog } from '@/contexts/catalog-context';
 import { useThemeMode, type ThemeMode } from '@/contexts/theme-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useResponsive } from '@/hooks/use-responsive';
-import { FRAMEWORKS } from '@/data/frameworks';
-import { LANGUAGES } from '@/data/languages';
 
 const LINKS = [
   { title: 'Documentación de Expo', icon: 'book-outline' as const, url: 'https://docs.expo.dev/' },
@@ -31,6 +30,7 @@ export default function AboutScreen() {
   const palette = Colors[colorScheme];
   const { mode, setMode } = useThemeMode();
   const { contentMaxWidth } = useResponsive();
+  const { languages, frameworks } = useCatalog();
 
   const openLink = async (url: string) => {
     if (Platform.OS !== 'web') {
@@ -51,7 +51,7 @@ export default function AboutScreen() {
           <ThemedText type="title">Catálogo de Lenguajes</ThemedText>
           <ThemedText style={{ opacity: 0.7, textAlign: 'center' }}>
             Una app móvil multiplataforma para conocer la historia y los primeros pasos de{' '}
-            {LANGUAGES.length} lenguajes de programación, y explorar {FRAMEWORKS.length} frameworks
+            {languages.length} lenguajes de programación, y explorar {frameworks.length} frameworks
             construidos sobre ellos.
           </ThemedText>
         </Animated.View>

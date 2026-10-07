@@ -11,7 +11,8 @@ import { BackButton } from '@/components/back-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
-import { getLanguageById, type CodeExample } from '@/data/languages';
+import { useCatalog } from '@/contexts/catalog-context';
+import { type CodeExample } from '@/data/languages';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useResponsive } from '@/hooks/use-responsive';
 
@@ -26,6 +27,7 @@ const TABS: { id: TabId; label: string; icon: keyof typeof Ionicons.glyphMap }[]
 
 export default function LearnScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { getLanguageById } = useCatalog();
   const language = getLanguageById(id);
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];

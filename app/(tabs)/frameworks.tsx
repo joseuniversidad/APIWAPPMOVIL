@@ -10,8 +10,8 @@ import { AnimatedPressable } from '@/components/animated-pressable';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
-import { FRAMEWORKS, type Framework } from '@/data/frameworks';
-import { getLanguageById } from '@/data/languages';
+import { useCatalog } from '@/contexts/catalog-context';
+import { type Framework } from '@/data/frameworks';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useResponsive } from '@/hooks/use-responsive';
 
@@ -20,16 +20,17 @@ export default function FrameworksScreen() {
   const palette = Colors[colorScheme];
   const { numColumns } = useResponsive();
   const [query, setQuery] = useState('');
+  const { frameworks, getLanguageById } = useCatalog();
 
   const results = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return FRAMEWORKS;
-    return FRAMEWORKS.filter(
+    if (!normalized) return frameworks;
+    return frameworks.filter(
       (fw) =>
         fw.name.toLowerCase().includes(normalized) ||
         getLanguageById(fw.languageId)?.name.toLowerCase().includes(normalized)
     );
-  }, [query]);
+  }, [query, frameworks, getLanguageById]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]} edges={['top']}>
@@ -79,6 +80,7 @@ function FrameworkCard({ framework, index, flex }: { framework: Framework; index
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
   const router = useRouter();
+  const { getLanguageById } = useCatalog();
   const language = getLanguageById(framework.languageId);
 
   const handlePress = () => {

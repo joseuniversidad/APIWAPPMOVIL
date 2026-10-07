@@ -4,6 +4,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider } from '@/contexts/auth-context';
+import { CatalogProvider } from '@/contexts/catalog-context';
 import { ThemeProvider as AppThemeProvider } from '@/contexts/theme-context';
 
 export const unstable_settings = {
@@ -13,9 +14,11 @@ export const unstable_settings = {
 export default function RootLayout() {
   return (
     <AppThemeProvider>
-      <AuthProvider>
-        <RootNavigation />
-      </AuthProvider>
+      <CatalogProvider>
+        <AuthProvider>
+          <RootNavigation />
+        </AuthProvider>
+      </CatalogProvider>
     </AppThemeProvider>
   );
 }

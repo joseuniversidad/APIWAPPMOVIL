@@ -10,13 +10,17 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://preferred-occurring-selections-legitimate.trycloudflare.com/api"
+        "EXPO_PUBLIC_API_URL": "https://preferred-occurring-selections-legitimate.trycloudflare.com/api",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://hknsujbvqtvuaixavysm.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_u_LOJU2JrfbcmvUl72Je8g_GTJiatOl"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://preferred-occurring-selections-legitimate.trycloudflare.com/api"
+        "EXPO_PUBLIC_API_URL": "https://preferred-occurring-selections-legitimate.trycloudflare.com/api",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://hknsujbvqtvuaixavysm.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_u_LOJU2JrfbcmvUl72Je8g_GTJiatOl"
       }
     }
   },

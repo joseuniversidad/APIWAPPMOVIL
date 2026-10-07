@@ -22,6 +22,7 @@ const MAPPING = {
   'info.circle.fill': 'info',
   'hammer.fill': 'build',
   'cloud.fill': 'cloud',
+  sparkles: 'auto-awesome',
 } as IconMapping;
 
 /**

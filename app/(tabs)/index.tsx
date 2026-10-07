@@ -14,7 +14,9 @@ import { Colors } from '@/constants/theme';
 import { useThemeMode } from '@/contexts/theme-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useResponsive } from '@/hooks/use-responsive';
-import { LANGUAGES, type ProgrammingLanguage } from '@/data/languages';
+import { type ProgrammingLanguage } from '@/data/languages';
+import { DataSourceBadge } from '@/components/data-source-badge';
+import { useCatalog } from '@/contexts/catalog-context';
 
 export default function CatalogScreen() {
   const colorScheme = useColorScheme() ?? 'light';
@@ -22,12 +24,13 @@ export default function CatalogScreen() {
   const { toggleColorScheme } = useThemeMode();
   const { numColumns } = useResponsive();
   const [query, setQuery] = useState('');
+  const { languages } = useCatalog();
 
   const results = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return LANGUAGES;
-    return LANGUAGES.filter((lang) => lang.name.toLowerCase().includes(normalized));
-  }, [query]);
+    if (!normalized) return languages;
+    return languages.filter((lang) => lang.name.toLowerCase().includes(normalized));
+  }, [query, languages]);
 
   const handleToggleTheme = () => {
     if (Platform.OS !== 'web') Haptics.selectionAsync();
@@ -42,6 +45,7 @@ export default function CatalogScreen() {
           <View style={styles.headerText}>
             <ThemedText type="title">Catálogo de Lenguajes</ThemedText>
             <ThemedText style={{ opacity: 0.7 }}>Historia, fundadores y primeros pasos</ThemedText>
+            <DataSourceBadge />
           </View>
           <Pressable
             onPress={handleToggleTheme}

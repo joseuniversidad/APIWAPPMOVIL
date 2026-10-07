@@ -10,9 +10,8 @@ import { BackButton } from '@/components/back-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
-import { getFrameworkById } from '@/data/frameworks';
+import { useCatalog } from '@/contexts/catalog-context';
 import { FRAMEWORK_GITHUB_REPOS } from '@/data/github-repos';
-import { getLanguageById } from '@/data/languages';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGithubRepo } from '@/hooks/use-github-repo';
 import { useResponsive } from '@/hooks/use-responsive';
@@ -22,6 +21,7 @@ const compactNumber = new Intl.NumberFormat('es', { notation: 'compact' });
 
 export default function FrameworkDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { getFrameworkById, getLanguageById } = useCatalog();
   const framework = getFrameworkById(id);
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
