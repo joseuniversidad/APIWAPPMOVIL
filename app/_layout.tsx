@@ -1,9 +1,9 @@
-import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { AuthProvider } from '@/contexts/auth-context';
 import { ThemeProvider as AppThemeProvider } from '@/contexts/theme-context';
 
 export const unstable_settings = {
@@ -13,7 +13,9 @@ export const unstable_settings = {
 export default function RootLayout() {
   return (
     <AppThemeProvider>
-      <RootNavigation />
+      <AuthProvider>
+        <RootNavigation />
+      </AuthProvider>
     </AppThemeProvider>
   );
 }
