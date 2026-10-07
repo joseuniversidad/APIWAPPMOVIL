@@ -1,0 +1,22 @@
+# Configuración de compilación para AWS Amplify Hosting.
+# La variable EXPO_PUBLIC_API_URL se define en Amplify → Hosting → Environment variables
+# porque el archivo .env no se sube a GitHub.
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - nvm install 22
+        - nvm use 22
+        - npm ci
+    build:
+      commands:
+        - nvm use 22
+        - npx expo export --platform web
+  artifacts:
+    baseDirectory: dist
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*
