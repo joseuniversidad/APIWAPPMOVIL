@@ -32,6 +32,7 @@ function RootNavigation() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="language/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="framework/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="agregar-lenguaje" options={{ headerShown: false, title: 'Agregar lenguaje' }} />
       </Stack>
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
     </NavigationThemeProvider>

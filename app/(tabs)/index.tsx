@@ -22,7 +22,8 @@ export default function CatalogScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
   const { toggleColorScheme } = useThemeMode();
-  const { numColumns } = useResponsive();
+  const { numColumns, width } = useResponsive();
+  const router = useRouter();
   const [query, setQuery] = useState('');
   const { languages } = useCatalog();
 
@@ -47,6 +48,18 @@ export default function CatalogScreen() {
             <ThemedText style={{ opacity: 0.7 }}>Historia, fundadores y primeros pasos</ThemedText>
             <DataSourceBadge />
           </View>
+          <Pressable
+            onPress={() => router.push('/agregar-lenguaje')}
+            hitSlop={8}
+            accessibilityLabel="Agregar lenguaje"
+            style={[styles.addButton, { borderColor: palette.tint }]}>
+            <Ionicons name="add" size={18} color={palette.tint} />
+            {width >= 600 && (
+              <ThemedText type="defaultSemiBold" style={{ color: palette.tint }}>
+                Agregar lenguaje
+              </ThemedText>
+            )}
+          </Pressable>
           <Pressable
             onPress={handleToggleTheme}
             hitSlop={8}
@@ -149,6 +162,17 @@ const styles = StyleSheet.create({
   headerText: {
     flex: 1,
     gap: 2,
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    height: 38,
+    minWidth: 38,
+    justifyContent: 'center',
+    paddingHorizontal: 9,
+    borderRadius: 19,
+    borderWidth: 1,
   },
   themeToggle: {
     width: 38,

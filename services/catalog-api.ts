@@ -116,3 +116,48 @@ export function subscribeToCatalogChanges(onChange: () => void): () => void {
     if (channel) client.removeChannel(channel);
   };
 }
+
+// Datos para crear un lenguaje. Los ejemplos de código son opcionales:
+// si se dejan vacíos la pantalla "Aprende" simplemente no los muestra.
+export type NewLanguage = Omit<ProgrammingLanguage, 'variablesExample' | 'conditionalsExample' | 'loopsExample'> & {
+  variablesExample: ProgrammingLanguage['variablesExample'] | null;
+  conditionalsExample: ProgrammingLanguage['conditionalsExample'] | null;
+  loopsExample: ProgrammingLanguage['loopsExample'] | null;
+};
+
+// Guarda el lenguaje con la función agregar_lenguaje (ver supabase/agregar-lenguaje.sql),
+// que valida la clave de administrador. Devuelve el id del lenguaje creado.
+export async function addLanguage(language: NewLanguage, adminKey: string): Promise<string> {
+  if (!supabase) throw new Error('Supabase no está configurado');
+  await ensureSupabaseSession();
+
+  const row: Omit<LanguageRow, 'variables_example' | 'conditionals_example' | 'loops_example'> & {
+    variables_example: NewLanguage['variablesExample'];
+    conditionals_example: NewLanguage['conditionalsExample'];
+    loops_example: NewLanguage['loopsExample'];
+  } = {
+    id: language.id,
+    name: language.name,
+    tagline: language.tagline,
+    color: language.color,
+    year: language.year,
+    founders: language.founders,
+    paradigm: language.paradigm,
+    history: language.history,
+    key_features: language.keyFeatures,
+    curiosity: language.curiosity,
+    use_cases: language.useCases,
+    variables_example: language.variablesExample,
+    conditionals_example: language.conditionalsExample,
+    loops_example: language.loopsExample,
+    steps: language.steps,
+    courses: language.courses,
+  };
+
+  const { data, error } = await supabase.rpc('agregar_lenguaje', { datos: row, clave: adminKey });
+  if (error) {
+    if (error.code === 'PGRST202') throw new Error('Falta ejecutar supabase/agregar-lenguaje.sql en Supabase');
+    throw new Error(error.message);
+  }
+  return data as string;
+}
