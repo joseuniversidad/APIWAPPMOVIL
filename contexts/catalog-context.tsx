@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 
 import { FRAMEWORKS, type Framework } from '@/data/frameworks';
 import { LANGUAGES, type ProgrammingLanguage } from '@/data/languages';
-import { fetchCatalog } from '@/services/catalog-api';
+import { fetchCatalog, subscribeToCatalogChanges } from '@/services/catalog-api';
 import { isSupabaseConfigured } from '@/services/supabase';
 
 export type CatalogSource = 'local' | 'supabase';
@@ -62,6 +62,21 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   const reload = useCallback(() => {
     setLoading(true);
     setAttempt((n) => n + 1);
+  }, []);
+
+  // Cuando otro usuario agrega o cambia un lenguaje en Supabase, se vuelve a leer el catálogo
+  // en segundo plano. Se espera un momento para agrupar varios cambios seguidos en una sola lectura.
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const unsubscribe = subscribeToCatalogChanges(() => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => setAttempt((n) => n + 1), 500);
+    });
+    return () => {
+      clearTimeout(timeout);
+      unsubscribe();
+    };
   }, []);
 
   const value = useMemo<CatalogContextValue>(

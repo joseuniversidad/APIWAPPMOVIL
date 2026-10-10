@@ -88,3 +88,31 @@ export async function fetchCatalog(): Promise<{ languages: ProgrammingLanguage[]
     frameworks: ((frameworks.data ?? []) as FrameworkRow[]).map(toFramework),
   };
 }
+
+// Avisa cada vez que alguien agrega, edita o borra un lenguaje o framework en Supabase,
+// para que todos los que tengan la app abierta vean el cambio sin recargar.
+// Requiere haber ejecutado supabase/realtime.sql. Devuelve la función para desuscribirse.
+export function subscribeToCatalogChanges(onChange: () => void): () => void {
+  const client = supabase;
+  if (!client) return () => {};
+
+  let channel: ReturnType<typeof client.channel> | null = null;
+  let cancelled = false;
+
+  // El canal se abre después de la sesión para que Realtime respete las políticas RLS.
+  ensureSupabaseSession()
+    .then(() => {
+      if (cancelled) return;
+      channel = client
+        .channel('catalogo')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'languages' }, onChange)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'frameworks' }, onChange)
+        .subscribe();
+    })
+    .catch(() => {});
+
+  return () => {
+    cancelled = true;
+    if (channel) client.removeChannel(channel);
+  };
+}
