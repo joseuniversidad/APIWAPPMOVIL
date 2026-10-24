@@ -27,6 +27,7 @@ import { CodeTypewriter } from '@/components/landing/code-typewriter';
 import { LoginForm } from '@/components/login-form';
 import { Colors } from '@/constants/theme';
 import { useCatalog } from '@/contexts/catalog-context';
+import { useThemeMode } from '@/contexts/theme-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 // Página de bienvenida con el login: navbar fija, scroll por secciones y animaciones.
@@ -585,6 +586,7 @@ export function LandingPage() {
             </View>
           )}
           <View style={styles.navActions}>
+            <ThemeToggle c={c} />
             {!phone && <ActionButton label="Registrarse" icon="person-add-outline" variant="outline" small onPress={() => router.push('/registro')} c={c} />}
             <ActionButton label="Entrar" icon="log-in-outline" small onPress={focusLogin} c={c} />
             {!desktop && (
@@ -709,6 +711,26 @@ function ActionButton({
       ]}>
       <Ionicons name={icon} size={small ? 16 : 18} color={color} />
       <Text style={[styles.buttonText, small && { fontSize: 14 }, large && { fontSize: 18 }, { color }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+// Cambia entre vista clara y oscura; el ícono aparece con un zoom al cambiar.
+function ThemeToggle({ c }: { c: LandingColors }) {
+  const { toggleColorScheme } = useThemeMode();
+  const [hovered, setHovered] = useState(false);
+  return (
+    <Pressable
+      onPress={toggleColorScheme}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={c.dark ? 'Cambiar a vista clara' : 'Cambiar a vista oscura'}
+      style={[styles.menuButton, { borderColor: hovered ? c.accent : c.border }]}>
+      <Animated.View key={c.dark ? 'dark' : 'light'} entering={ZoomIn.duration(300)}>
+        <Ionicons name={c.dark ? 'sunny' : 'moon'} size={20} color={c.dark ? '#f5c542' : '#3b4a6b'} />
+      </Animated.View>
     </Pressable>
   );
 }
