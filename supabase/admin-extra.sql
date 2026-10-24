@@ -85,7 +85,80 @@ create policy "Borrar preguntas propias" on public.preguntas_quiz
   for delete to authenticated using (autor_id = auth.uid() or public.es_admin());
 
 -- ===========================================================================
--- FRAMEWORKS: agregar o editar (mismo id = editar) y borrar. Solo superusuario.
+-- EDITORES DE FRAMEWORKS: cuentas (por ejemplo la del compañero) que pueden agregar y
+-- editar frameworks sin ser superusuario. Se agregan por correo:
+--   insert into privado.editores_frameworks (user_id)
+--   select id from auth.users where email = 'correo@ejemplo.com'
+--   on conflict do nothing;
+-- ===========================================================================
+create table if not exists privado.editores_frameworks (
+  user_id uuid primary key references auth.users(id) on delete cascade
+);
+
+create or replace function public.puede_editar_frameworks()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select public.es_admin()
+    or exists (select 1 from privado.editores_frameworks e where e.user_id = auth.uid());
+$$;
+
+grant execute on function public.puede_editar_frameworks() to authenticated;
+
+-- También pueden escribir directo en la tabla (POST /rest/v1/frameworks), no solo con la función.
+-- Borrar sigue siendo solo del superusuario.
+grant insert, update on public.frameworks to authenticated;
+
+drop policy if exists "Editores agregan frameworks" on public.frameworks;
+create policy "Editores agregan frameworks" on public.frameworks
+  for insert to authenticated with check (public.puede_editar_frameworks());
+
+drop policy if exists "Editores editan frameworks" on public.frameworks;
+create policy "Editores editan frameworks" on public.frameworks
+  for update to authenticated
+  using (public.puede_editar_frameworks()) with check (public.puede_editar_frameworks());
+
+-- La API del compañero solo manda algunos campos. Si llega sin id, se genera a partir del
+-- nombre ("Ruby on Rails" → "ruby-on-rails"); el resto de campos vacíos recibe un valor por
+-- defecto. Solo name y language_id son obligatorios.
+create or replace function privado.id_framework_desde_nombre()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if coalesce(new.name, '') = '' or coalesce(new.language_id, '') = '' then
+    raise exception 'Faltan "name" o "language_id". Datos recibidos: %', row_to_json(new);
+  end if;
+  if coalesce(new.id, '') = '' then
+    new.id := trim(both '-' from regexp_replace(
+      translate(lower(new.name), 'áéíóúüñ', 'aeiouun'), '[^a-z0-9_]+', '-', 'g'));
+  end if;
+  new.tagline      := coalesce(new.tagline, '');
+  new.description  := coalesce(new.description, '');
+  new.year         := coalesce(new.year, extract(year from current_date)::int);
+  new.creator      := coalesce(new.creator, 'Desconocido');
+  new.color        := coalesce(new.color,
+    (select l.color from public.languages l where l.id = new.language_id), '#6B7280');
+  new.key_features := coalesce(new.key_features, '{}');
+  new.curiosity    := coalesce(new.curiosity, '');
+  new.use_cases    := coalesce(new.use_cases, '{}');
+  new.docs_url     := coalesce(new.docs_url, '');
+  return new;
+end;
+$$;
+
+drop trigger if exists frameworks_id_automatico on public.frameworks;
+create trigger frameworks_id_automatico
+  before insert on public.frameworks
+  for each row execute function privado.id_framework_desde_nombre();
+
+-- ===========================================================================
+-- FRAMEWORKS: agregar o editar (mismo id = editar) y borrar.
+-- Guardar: superusuario o editor de frameworks. Borrar: solo superusuario.
 -- ===========================================================================
 create or replace function public.guardar_framework(datos jsonb)
 returns text
@@ -96,8 +169,8 @@ as $$
 declare
   r public.frameworks;
 begin
-  if not public.es_admin() then
-    raise exception 'Solo el superusuario puede guardar frameworks';
+  if not public.puede_editar_frameworks() then
+    raise exception 'Tu cuenta no tiene permiso para guardar frameworks';
   end if;
   r := jsonb_populate_record(null::public.frameworks, datos);
   if coalesce(r.id, '') !~ '^[a-z0-9_-]+$' then

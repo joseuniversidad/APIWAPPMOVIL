@@ -83,9 +83,26 @@ export async function fetchCatalog(): Promise<{ languages: ProgrammingLanguage[]
   if (error) throw new Error(error.message);
   if (!languages.data?.length) throw new Error('Supabase no devolvió lenguajes');
 
+  const languageList = (languages.data as LanguageRow[]).map(toLanguage);
   return {
-    languages: (languages.data as LanguageRow[]).map(toLanguage),
-    frameworks: ((frameworks.data ?? []) as FrameworkRow[]).map(toFramework),
+    languages: languageList,
+    frameworks: ((frameworks.data ?? []) as FrameworkRow[]).map((row) => completeFramework(toFramework(row), languageList)),
+  };
+}
+
+// Los frameworks que agrega el compañero desde su API pueden llegar con campos vacíos:
+// se completan con datos de su lenguaje para que la tarjeta y el detalle se vean bien.
+function completeFramework(framework: Framework, languages: ProgrammingLanguage[]): Framework {
+  const language = languages.find((l) => l.id === framework.languageId);
+  const languageName = language?.name ?? 'programación';
+  const docsUrl = framework.docsUrl.trim();
+  return {
+    ...framework,
+    color: /^#[0-9a-f]{6}$/i.test(framework.color) ? framework.color : (language?.color ?? '#6B7280'),
+    tagline: framework.tagline.trim() || `Framework de ${languageName}`,
+    description: framework.description.trim() || `${framework.name} es un framework que se programa con ${languageName}.`,
+    creator: framework.creator.trim() || 'Desconocido',
+    docsUrl: docsUrl && !/^https?:\/\//i.test(docsUrl) ? `https://${docsUrl}` : docsUrl,
   };
 }
 

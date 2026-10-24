@@ -15,6 +15,7 @@ import { FRAMEWORK_GITHUB_REPOS } from '@/data/github-repos';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useGithubRepo } from '@/hooks/use-github-repo';
 import { useResponsive } from '@/hooks/use-responsive';
+import { readableOn } from '@/utils/color';
 import { youtubeSearchUrl } from '@/utils/external-links';
 
 const compactNumber = new Intl.NumberFormat('es', { notation: 'compact' });
@@ -39,6 +40,7 @@ export default function FrameworkDetailScreen() {
   }
 
   const language = getLanguageById(framework.languageId);
+  const ink = readableOn(framework.color);
 
   const openRepo = async () => {
     if (githubState.status !== 'success') return;
@@ -72,10 +74,10 @@ export default function FrameworkDetailScreen() {
         <BackButton fallbackHref="/" />
 
         <Animated.View entering={FadeIn.duration(300)} style={[styles.banner, { backgroundColor: framework.color }]}>
-          <ThemedText style={styles.bannerText} lightColor="#fff" darkColor="#fff">
+          <ThemedText style={styles.bannerText} lightColor={ink} darkColor={ink}>
             {framework.name}
           </ThemedText>
-          <ThemedText style={styles.bannerTagline} lightColor="#f2f2f2" darkColor="#f2f2f2">
+          <ThemedText style={[styles.bannerTagline, { opacity: 0.9 }]} lightColor={ink} darkColor={ink}>
             {framework.tagline}
           </ThemedText>
         </Animated.View>
@@ -125,47 +127,56 @@ export default function FrameworkDetailScreen() {
           <ThemedText style={styles.paragraph}>{framework.description}</ThemedText>
         </ThemedView>
 
-        <ThemedView style={styles.card}>
-          <View style={styles.cardTitleRow}>
-            <Ionicons name="checkmark-circle-outline" size={18} color={palette.tint} />
-            <ThemedText type="subtitle">Características principales</ThemedText>
-          </View>
-          {framework.keyFeatures.map((feature) => (
-            <View key={feature} style={styles.bulletRow}>
-              <View style={[styles.bulletDot, { backgroundColor: framework.color }]} />
-              <ThemedText style={{ flex: 1 }}>{feature}</ThemedText>
+        {/* Los frameworks agregados desde la API del compañero pueden no traer estas secciones. */}
+        {framework.keyFeatures.length > 0 ? (
+          <ThemedView style={styles.card}>
+            <View style={styles.cardTitleRow}>
+              <Ionicons name="checkmark-circle-outline" size={18} color={palette.tint} />
+              <ThemedText type="subtitle">Características principales</ThemedText>
             </View>
-          ))}
-        </ThemedView>
+            {framework.keyFeatures.map((feature) => (
+              <View key={feature} style={styles.bulletRow}>
+                <View style={[styles.bulletDot, { backgroundColor: framework.color }]} />
+                <ThemedText style={{ flex: 1 }}>{feature}</ThemedText>
+              </View>
+            ))}
+          </ThemedView>
+        ) : null}
 
-        <View style={[styles.curiosityCard, { backgroundColor: `${framework.color}22`, borderColor: framework.color }]}>
-          <View style={styles.cardTitleRow}>
-            <Ionicons name="bulb-outline" size={18} color={framework.color} />
-            <ThemedText type="subtitle">¿Sabías qué?</ThemedText>
-          </View>
-          <ThemedText style={styles.paragraph}>{framework.curiosity}</ThemedText>
-        </View>
-
-        <ThemedView style={styles.card}>
-          <View style={styles.cardTitleRow}>
-            <Ionicons name="apps-outline" size={18} color={palette.tint} />
-            <ThemedText type="subtitle">¿Para qué se usa?</ThemedText>
-          </View>
-          {framework.useCases.map((useCase) => (
-            <View key={useCase} style={styles.bulletRow}>
-              <View style={[styles.bulletDot, { backgroundColor: framework.color }]} />
-              <ThemedText style={{ flex: 1 }}>{useCase}</ThemedText>
+        {framework.curiosity.trim() ? (
+          <View style={[styles.curiosityCard, { backgroundColor: `${framework.color}22`, borderColor: framework.color }]}>
+            <View style={styles.cardTitleRow}>
+              <Ionicons name="bulb-outline" size={18} color={framework.color} />
+              <ThemedText type="subtitle">¿Sabías qué?</ThemedText>
             </View>
-          ))}
-        </ThemedView>
+            <ThemedText style={styles.paragraph}>{framework.curiosity}</ThemedText>
+          </View>
+        ) : null}
+
+        {framework.useCases.length > 0 ? (
+          <ThemedView style={styles.card}>
+            <View style={styles.cardTitleRow}>
+              <Ionicons name="apps-outline" size={18} color={palette.tint} />
+              <ThemedText type="subtitle">¿Para qué se usa?</ThemedText>
+            </View>
+            {framework.useCases.map((useCase) => (
+              <View key={useCase} style={styles.bulletRow}>
+                <View style={[styles.bulletDot, { backgroundColor: framework.color }]} />
+                <ThemedText style={{ flex: 1 }}>{useCase}</ThemedText>
+              </View>
+            ))}
+          </ThemedView>
+        ) : null}
 
         <View style={styles.actions}>
-          <AnimatedPressable onPress={openDocs} style={[styles.actionButton, { backgroundColor: palette.tint }]}>
-            <Ionicons name="play-outline" size={18} color={colorScheme === 'dark' ? '#000' : '#fff'} />
-            <ThemedText type="defaultSemiBold" lightColor="#fff" darkColor="#000">
-              Ver documentación oficial
-            </ThemedText>
-          </AnimatedPressable>
+          {framework.docsUrl ? (
+            <AnimatedPressable onPress={openDocs} style={[styles.actionButton, { backgroundColor: palette.tint }]}>
+              <Ionicons name="play-outline" size={18} color={colorScheme === 'dark' ? '#000' : '#fff'} />
+              <ThemedText type="defaultSemiBold" lightColor="#fff" darkColor="#000">
+                Ver documentación oficial
+              </ThemedText>
+            </AnimatedPressable>
+          ) : null}
 
           <AnimatedPressable
             onPress={openVideos}

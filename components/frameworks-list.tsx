@@ -13,6 +13,7 @@ import { useCatalog } from '@/contexts/catalog-context';
 import { type Framework } from '@/data/frameworks';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useResponsive } from '@/hooks/use-responsive';
+import { readableOn } from '@/utils/color';
 
 // Lista de frameworks que se muestra dentro del Catálogo (interruptor Lenguajes | Frameworks).
 // Recibe la búsqueda del catálogo y filtra por nombre del framework o de su lenguaje.
@@ -76,7 +77,7 @@ function FrameworkCard({ framework, index, flex }: { framework: Framework; index
       <AnimatedPressable onPress={handlePress} style={styles.card}>
         <ThemedView style={[styles.cardInner, { borderColor: colorScheme === 'dark' ? '#2a2d2e' : '#ececec' }]}>
           <View style={[styles.badge, { backgroundColor: framework.color }]}>
-            <ThemedText style={styles.badgeText} lightColor="#fff" darkColor="#fff">
+            <ThemedText style={styles.badgeText} lightColor={readableOn(framework.color)} darkColor={readableOn(framework.color)}>
               {framework.name.slice(0, 2).toUpperCase()}
             </ThemedText>
           </View>
