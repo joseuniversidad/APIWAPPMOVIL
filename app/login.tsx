@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Platform, StyleSheet, TextInput, View } from 'react-native';
+import { Platform, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { AuthField, AuthScreen, FormButton, FormCard, FormMessage, useFormColors } from '@/components/auth-form';
@@ -24,6 +24,10 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const ready = isSupabaseConfigured();
+  const { width, height } = useWindowDimensions();
+  // El logo y el título se achican en celulares pequeños y crecen un poco en tablet/escritorio.
+  const logoSize = height < 640 || width < 360 ? 64 : width >= 700 ? 104 : 84;
+  const titleSize = width < 360 ? 26 : width >= 700 ? 36 : 32;
 
   const handleSubmit = async () => {
     const emailProblem = email.trim() ? null : 'Escribe tu correo';
@@ -46,8 +50,8 @@ export default function LoginScreen() {
   return (
     <AuthScreen>
       <Animated.View entering={FadeInDown.duration(350)} style={styles.hero}>
-        <Image source={require('@/assets/images/icon.png')} style={styles.logo} contentFit="cover" />
-        <ThemedText type="title" style={styles.center}>
+        <Image source={require('@/assets/images/icon.png')} style={[styles.logo, { width: logoSize, height: logoSize, borderRadius: logoSize * 0.26 }]} contentFit="cover" />
+        <ThemedText type="title" style={[styles.center, { fontSize: titleSize, lineHeight: titleSize * 1.2 }]}>
           Catálogo de Lenguajes
         </ThemedText>
         <ThemedText style={[styles.muted, styles.center]}>Inicia sesión con tu cuenta</ThemedText>
@@ -105,9 +109,6 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   logo: {
-    width: 84,
-    height: 84,
-    borderRadius: 22,
     marginBottom: 6,
   },
   center: {

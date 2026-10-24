@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
+  useWindowDimensions,
   View,
   type TextInputProps,
 } from 'react-native';
@@ -16,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useResponsive } from '@/hooks/use-responsive';
 
 // Piezas comunes del login y el registro.
 export const DANGER = '#d9534f';
@@ -117,18 +119,34 @@ export function FormMessage({ text, tone = 'error' }: { text: string; tone?: 'er
   );
 }
 
+// En tablet y escritorio el formulario va dentro de una tarjeta para que no flote en una pantalla enorme.
 export function FormCard({ children }: { children: ReactNode }) {
-  return <View style={styles.form}>{children}</View>;
+  const { border, surface } = useFormColors();
+  const { isTablet } = useResponsive();
+  return (
+    <View style={[styles.form, isTablet && [styles.formCard, { borderColor: border, backgroundColor: surface }]]}>
+      {children}
+    </View>
+  );
 }
 
 // Contenedor de las pantallas de cuenta: centrado, con ancho máximo y que sube con el teclado.
 export function AuthScreen({ children, center = true }: { children: ReactNode; center?: boolean }) {
   const { palette } = useFormColors();
+  const { height } = useWindowDimensions();
+  const { width, isTablet } = useResponsive();
+  // Celulares pequeños o en horizontal: menos aire para que todo quepa sin tanto scroll.
+  const compact = width < 360 || height < 640;
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
-          contentContainerStyle={[styles.screen, center && { justifyContent: 'center' }]}
+          contentContainerStyle={[
+            styles.screen,
+            compact && styles.screenCompact,
+            isTablet && styles.screenWide,
+            center && { justifyContent: 'center' },
+          ]}
           keyboardShouldPersistTaps="handled">
           {children}
         </ScrollView>
@@ -146,8 +164,21 @@ const styles = StyleSheet.create({
     maxWidth: 440,
     alignSelf: 'center',
   },
+  screenCompact: {
+    padding: 16,
+    gap: 16,
+  },
+  screenWide: {
+    maxWidth: 480,
+    paddingVertical: 48,
+  },
   form: {
     gap: 14,
+  },
+  formCard: {
+    padding: 28,
+    borderWidth: 1,
+    borderRadius: 20,
   },
   field: {
     gap: 6,
