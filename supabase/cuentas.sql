@@ -92,10 +92,12 @@ grant execute on function public.mi_rol(), public.es_admin(), public.es_profesor
 -- ---------------------------------------------------------------------------
 -- 4. Administración de usuarios (solo superusuario).
 -- ---------------------------------------------------------------------------
+-- (La misma definición está en admin-extra.sql; se borra antes por si cambian las columnas.)
+drop function if exists public.listar_usuarios();
 create or replace function public.listar_usuarios()
 returns table (
   id uuid, correo text, nombre text, apodo text, rol text,
-  confirmado boolean, creado timestamptz, ultimo_acceso timestamptz, quizzes int
+  confirmado boolean, creado timestamptz, ultimo_acceso timestamptz, quizzes int, suspendido_hasta timestamptz
 )
 language plpgsql
 stable
@@ -110,7 +112,8 @@ begin
     select u.id, u.email::text, p.nombre, p.apodo,
       coalesce(u.raw_app_meta_data ->> 'role', 'estudiante'),
       u.email_confirmed_at is not null, u.created_at, u.last_sign_in_at,
-      (select count(*) from public.quiz_scores q where q.user_id = u.id)::int
+      (select count(*) from public.quiz_scores q where q.user_id = u.id)::int,
+      case when u.banned_until > now() then u.banned_until end
     from auth.users u
     left join public.perfiles p on p.user_id = u.id
     where coalesce(u.is_anonymous, false) = false

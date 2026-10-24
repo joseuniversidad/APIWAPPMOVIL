@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ContentSection, UsersSection } from '@/components/admin-sections';
+import { AppSection, ContentSection, UsersSection } from '@/components/admin-sections';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
@@ -13,7 +13,7 @@ import { useAuth } from '@/contexts/auth-context';
 import { useCatalog } from '@/contexts/catalog-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useResponsive } from '@/hooks/use-responsive';
-import { fetchAdminReport, subscribeToQuizActivity, type AdminReport } from '@/services/admin';
+import { fetchAdminReport, fetchRecentSignups, subscribeToQuizActivity, type AdminReport, type RecentSignups } from '@/services/admin';
 
 const SERIES = {
   light: { quiz: '#0a7ea4', ia: '#d9822b' },
@@ -21,6 +21,29 @@ const SERIES = {
 };
 
 const WEEKDAYS = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+
+// Identidad visual del administrador: azul profundo con acento dorado, igual en modo claro y oscuro.
+export const ADMIN_COLORS = { hero: '#16213e', heroSoft: '#22305a', gold: '#f5b301', text: '#ffffff' };
+
+type Section = 'resumen' | 'usuarios' | 'contenido' | 'app';
+
+const SECTION_LABELS: Record<Section, string> = { resumen: 'Resumen', usuarios: 'Usuarios', contenido: 'Contenido', app: 'La app' };
+
+type QuickAction = {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  path?: '/agregar-lenguaje' | '/framework-form' | '/nuevo-reto' | '/preguntas';
+  section?: Section;
+};
+
+const QUICK_ACTIONS: QuickAction[] = [
+  { icon: 'code-slash', label: 'Lenguaje', path: '/agregar-lenguaje' },
+  { icon: 'construct', label: 'Framework', path: '/framework-form' },
+  { icon: 'trophy', label: 'Reto', path: '/nuevo-reto' },
+  { icon: 'help-circle', label: 'Pregunta', path: '/preguntas' },
+  { icon: 'megaphone', label: 'Anuncio', section: 'app' },
+  { icon: 'people', label: 'Usuarios', section: 'usuarios' },
+];
 
 function timeAgo(iso: string) {
   const minutes = Math.round((Date.now() - Date.parse(iso)) / 60000);
@@ -49,7 +72,8 @@ export default function AdminScreen() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [version, setVersion] = useState(0);
-  const [section, setSection] = useState<'resumen' | 'usuarios' | 'contenido'>('resumen');
+  const [section, setSection] = useState<Section>('resumen');
+  const [signups, setSignups] = useState<RecentSignups | null>(null);
 
   const load = useCallback(() => setVersion((v) => v + 1), []);
   const stopRefreshing = useCallback(() => setRefreshing(false), []);
@@ -66,6 +90,7 @@ export default function AdminScreen() {
       })
       .catch((e) => active && setError(e instanceof Error ? e.message : 'No se pudo cargar el reporte'))
       .finally(() => active && setRefreshing(false));
+    fetchRecentSignups().then((data) => active && setSignups(data));
     return () => {
       active = false;
     };
@@ -89,10 +114,13 @@ export default function AdminScreen() {
     load();
   };
 
-  const go = (path: '/agregar-lenguaje' | '/api') => {
+  const runAction = (action: QuickAction) => {
     if (Platform.OS !== 'web') Haptics.selectionAsync();
-    router.push(path);
+    if (action.path) router.push(action.path);
+    else if (action.section) setSection(action.section);
   };
+
+  const adminName = typeof user?.user_metadata?.full_name === 'string' ? user.user_metadata.full_name.split(' ')[0] : 'Administrador';
 
   if (!isAdmin) {
     return (
@@ -113,24 +141,50 @@ export default function AdminScreen() {
           styles.content,
           contentMaxWidth ? { maxWidth: contentMaxWidth, alignSelf: 'center', width: '100%' } : undefined,
         ]}>
-        <View style={styles.header}>
-          <View style={{ flex: 1, gap: 2 }}>
-            <ThemedText style={styles.eyebrow}>SUPERUSUARIO</ThemedText>
-            <ThemedText type="title" style={{ fontSize: 28, lineHeight: 32 }}>
-              Panel
-            </ThemedText>
-            <ThemedText style={styles.muted} numberOfLines={1}>
-              {user?.email}
-            </ThemedText>
+        <View style={[styles.hero, { backgroundColor: ADMIN_COLORS.hero }]}>
+          <View style={styles.heroTop}>
+            <View style={[styles.heroIcon, { backgroundColor: ADMIN_COLORS.heroSoft }]}>
+              <Ionicons name="shield-checkmark" size={24} color={ADMIN_COLORS.gold} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <ThemedText style={[styles.heroEyebrow, { color: ADMIN_COLORS.gold }]}>PANEL DE ADMINISTRACIÓN</ThemedText>
+              <ThemedText style={styles.heroTitle} lightColor={ADMIN_COLORS.text} darkColor={ADMIN_COLORS.text}>
+                Hola, {adminName}
+              </ThemedText>
+              <ThemedText style={styles.heroSub} lightColor="#c9d1e6" darkColor="#c9d1e6" numberOfLines={1}>
+                {user?.email}
+              </ThemedText>
+            </View>
+            <View style={styles.live}>
+              <View style={styles.liveDot} />
+              <ThemedText style={{ color: '#7ee2a1', fontSize: 12, fontWeight: '600' }}>En vivo</ThemedText>
+            </View>
           </View>
-          <View style={[styles.live, { borderColor: '#2e9e5b66', backgroundColor: '#2e9e5b1A' }]}>
-            <View style={styles.liveDot} />
-            <ThemedText style={{ color: '#2e9e5b', fontSize: 12, fontWeight: '600' }}>En vivo</ThemedText>
+          <View style={styles.heroStats}>
+            <HeroStat label="Usuarios" value={report ? formatNumber(report.usuarios) : '—'} />
+            <HeroStat label="Nuevos hoy" value={signups ? formatNumber(signups.hoy) : '—'} />
+            <HeroStat label="Esta semana" value={signups ? formatNumber(signups.semana) : '—'} />
+            <HeroStat label="Profesores" value={report ? formatNumber(report.profesores ?? 0) : '—'} />
           </View>
         </View>
 
+        <View style={styles.quickGrid}>
+          {QUICK_ACTIONS.map((action) => (
+            <Pressable
+              key={action.label}
+              onPress={() => runAction(action)}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.quickTile, { borderColor: border }, pressed && { opacity: 0.6 }]}>
+              <View style={[styles.quickIcon, { backgroundColor: `${ADMIN_COLORS.gold}26` }]}>
+                <Ionicons name={action.icon} size={20} color={colorScheme === 'dark' ? ADMIN_COLORS.gold : '#9a6b00'} />
+              </View>
+              <ThemedText style={styles.quickLabel}>{action.path ? `+ ${action.label}` : action.label}</ThemedText>
+            </Pressable>
+          ))}
+        </View>
+
         <View style={[styles.segment, { backgroundColor: colorScheme === 'dark' ? '#1d2022' : '#f1f3f5' }]}>
-          {(['resumen', 'usuarios', 'contenido'] as const).map((option) => {
+          {(['resumen', 'usuarios', 'contenido', 'app'] as const).map((option) => {
             const selected = section === option;
             return (
               <Pressable
@@ -145,7 +199,7 @@ export default function AdminScreen() {
                 <ThemedText
                   type={selected ? 'defaultSemiBold' : 'default'}
                   style={{ fontSize: 14, color: selected ? palette.tint : palette.icon }}>
-                  {option === 'resumen' ? 'Resumen' : option === 'usuarios' ? 'Usuarios' : 'Contenido'}
+                  {SECTION_LABELS[option]}
                 </ThemedText>
               </Pressable>
             );
@@ -156,26 +210,48 @@ export default function AdminScreen() {
           <UsersSection version={version} onLoaded={stopRefreshing} />
         ) : section === 'contenido' ? (
           <ContentSection version={version} onLoaded={stopRefreshing} />
+        ) : section === 'app' ? (
+          <AppSection onLoaded={stopRefreshing} />
         ) : (
           <>
-            <View style={styles.actionsRow}>
-              <Pressable
-                onPress={() => go('/agregar-lenguaje')}
-                style={({ pressed }) => [styles.primary, { backgroundColor: palette.tint }, pressed && { opacity: 0.7 }]}>
-                <Ionicons name="add-circle-outline" size={20} color={palette.background} />
-                <ThemedText type="defaultSemiBold" style={{ color: palette.background }}>
-                  Agregar lenguaje
-                </ThemedText>
-              </Pressable>
-              <Pressable
-                onPress={() => go('/api')}
-                style={({ pressed }) => [styles.secondary, { borderColor: border }, pressed && { opacity: 0.6 }]}>
-                <Ionicons name="bar-chart-outline" size={18} color={palette.tint} />
-                <ThemedText type="defaultSemiBold" style={{ color: palette.tint, fontSize: 14 }}>
-                  Reportes API
-                </ThemedText>
-              </Pressable>
-            </View>
+            {signups && (
+              <ThemedView style={[styles.card, { borderColor: border }]}>
+                <View style={styles.rowBetween}>
+                  <ThemedText type="defaultSemiBold">Nuevos usuarios</ThemedText>
+                  <Pressable onPress={() => setSection('usuarios')} hitSlop={8}>
+                    <ThemedText style={{ color: palette.tint, fontSize: 14 }}>Ver todos</ThemedText>
+                  </Pressable>
+                </View>
+                {signups.ultimos.length === 0 ? (
+                  <ThemedText style={styles.muted}>Todavía no se registra nadie.</ThemedText>
+                ) : (
+                  signups.ultimos.slice(0, 5).map((person, index) => (
+                    <View
+                      key={person.correo + index}
+                      style={[styles.attemptRow, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: border }]}>
+                      <Ionicons name="person-add-outline" size={18} color={palette.icon} />
+                      <View style={{ flex: 1 }}>
+                        <ThemedText style={{ fontSize: 14 }} numberOfLines={1}>
+                          {person.nombre}
+                        </ThemedText>
+                        <ThemedText style={[styles.muted, { fontSize: 12 }]} numberOfLines={1}>
+                          {person.correo}
+                        </ThemedText>
+                      </View>
+                      <ThemedText style={[styles.muted, { fontSize: 12 }]}>{timeAgo(person.creado)}</ThemedText>
+                    </View>
+                  ))
+                )}
+              </ThemedView>
+            )}
+
+            <Pressable
+              onPress={() => router.push('/api')}
+              style={({ pressed }) => [styles.apiLink, { borderColor: border }, pressed && { opacity: 0.6 }]}>
+              <Ionicons name="bar-chart-outline" size={18} color={palette.tint} />
+              <ThemedText style={{ color: palette.tint, flex: 1 }}>Reportes y presupuestos de la API del compañero</ThemedText>
+              <Ionicons name="chevron-forward" size={16} color={palette.icon} />
+            </Pressable>
 
             {error && (
               <ThemedView style={[styles.card, { borderColor: '#d9534f66' }]}>
@@ -315,6 +391,19 @@ export default function AdminScreen() {
   );
 }
 
+function HeroStat({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.heroStat}>
+      <ThemedText style={styles.heroStatValue} lightColor={ADMIN_COLORS.text} darkColor={ADMIN_COLORS.text}>
+        {value}
+      </ThemedText>
+      <ThemedText style={styles.heroStatLabel} lightColor="#c9d1e6" darkColor="#c9d1e6">
+        {label}
+      </ThemedText>
+    </View>
+  );
+}
+
 function Kpi({
   icon,
   label,
@@ -370,17 +459,6 @@ const styles = StyleSheet.create({
     gap: 14,
     paddingBottom: 32,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  eyebrow: {
-    fontSize: 11,
-    letterSpacing: 1,
-    fontWeight: '700',
-    opacity: 0.6,
-  },
   muted: {
     opacity: 0.65,
   },
@@ -392,16 +470,101 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
+    borderColor: '#2e9e5b88',
+    backgroundColor: '#2e9e5b33',
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    marginTop: 4,
   },
   liveDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: '#2e9e5b',
+  },
+  hero: {
+    borderRadius: 20,
+    padding: 16,
+    gap: 14,
+  },
+  heroTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  heroIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroEyebrow: {
+    fontSize: 11,
+    letterSpacing: 1,
+    fontWeight: '800',
+  },
+  heroTitle: {
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: '800',
+  },
+  heroSub: {
+    fontSize: 13,
+  },
+  heroStats: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  heroStat: {
+    flex: 1,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  heroStatValue: {
+    fontSize: 18,
+    lineHeight: 22,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  heroStatLabel: {
+    fontSize: 10,
+    lineHeight: 13,
+  },
+  quickGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  quickTile: {
+    flexBasis: '31%',
+    flexGrow: 1,
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  quickIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  apiLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   segment: {
     flexDirection: 'row',
@@ -415,29 +578,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 38,
     borderRadius: 9,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  primary: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 48,
-    borderRadius: 14,
-  },
-  secondary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    minHeight: 48,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    borderWidth: 1,
   },
   kpis: {
     flexDirection: 'row',

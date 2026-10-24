@@ -1,3 +1,4 @@
+import type { Framework } from '@/data/frameworks';
 import type { NewLanguage } from '@/services/catalog-api';
 import { languageToRow } from '@/services/catalog-api';
 import { supabase } from '@/services/supabase';
@@ -65,6 +66,7 @@ export type AppUser = {
   creado: string;
   ultimo_acceso: string | null;
   quizzes: number;
+  suspendido_hasta: string | null;
 };
 
 export async function listUsers(): Promise<AppUser[]> {
@@ -91,4 +93,44 @@ export async function editLanguage(language: NewLanguage): Promise<void> {
 export async function deleteLanguage(languageId: string): Promise<void> {
   const { error } = await client().rpc('borrar_lenguaje', { lenguaje: languageId });
   if (error) throw rpcError(error, 'cuentas.sql');
+}
+
+// dias = 0 reactiva la cuenta.
+export async function suspendUser(userId: string, dias: number): Promise<void> {
+  const { error } = await client().rpc('suspender_usuario', { usuario: userId, dias });
+  if (error) throw rpcError(error, 'admin-extra.sql');
+}
+
+export type RecentSignups = { hoy: number; semana: number; ultimos: { nombre: string; correo: string; creado: string }[] };
+
+export async function fetchRecentSignups(): Promise<RecentSignups | null> {
+  const { data, error } = await client().rpc('registros_recientes');
+  if (error) return null;
+  return data as RecentSignups;
+}
+
+// Mismo id = editar; id nuevo = agregar.
+export async function saveFramework(framework: Framework): Promise<void> {
+  const { error } = await client().rpc('guardar_framework', {
+    datos: {
+      id: framework.id,
+      name: framework.name,
+      language_id: framework.languageId,
+      tagline: framework.tagline,
+      description: framework.description,
+      year: framework.year,
+      creator: framework.creator,
+      color: framework.color,
+      key_features: framework.keyFeatures,
+      curiosity: framework.curiosity,
+      use_cases: framework.useCases,
+      docs_url: framework.docsUrl,
+    },
+  });
+  if (error) throw rpcError(error, 'admin-extra.sql');
+}
+
+export async function deleteFramework(frameworkId: string): Promise<void> {
+  const { error } = await client().rpc('borrar_framework', { framework: frameworkId });
+  if (error) throw rpcError(error, 'admin-extra.sql');
 }

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,6 +16,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useResponsive } from '@/hooks/use-responsive';
 import { generateAiQuiz } from '@/services/ai-chat';
 import { getBestScore, getRanking, saveQuizScore, type BestScore, type RankingRow, type ScoreSource } from '@/services/quiz-scores';
+import { getCustomQuestions, toQuizQuestion, type CustomQuestion } from '@/services/quiz-questions';
 import { isSupabaseConfigured } from '@/services/supabase';
 import { readableOn } from '@/utils/color';
 import { buildQuiz, quizMessage, type QuizQuestion } from '@/utils/quiz';
@@ -23,6 +24,17 @@ import { buildQuiz, quizMessage, type QuizQuestion } from '@/utils/quiz';
 const CORRECT = '#2e9e5b';
 const WRONG = '#d9534f';
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
+// Máximo de preguntas por quiz al mezclar las del catálogo con las de los profesores.
+const MAX_QUESTIONS = 8;
+
+function mixQuestions(generated: QuizQuestion[], custom: CustomQuestion[]): QuizQuestion[] {
+  const all = [...generated, ...custom.map(toQuizQuestion)];
+  for (let i = all.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [all[i], all[j]] = [all[j], all[i]];
+  }
+  return all.slice(0, MAX_QUESTIONS);
+}
 
 type QuizMode = 'catalogo' | 'ia';
 
@@ -52,6 +64,25 @@ export default function QuizScreen() {
   const [savedIn, setSavedIn] = useState<ScoreSource | 'saving' | null>(null);
   const [bestScore, setBestScore] = useState<BestScore>(null);
   const [bestVersion, setBestVersion] = useState(0);
+  const [customQuestions, setCustomQuestions] = useState<CustomQuestion[]>([]);
+  // Si el quiz ya empezó, las preguntas propias que lleguen tarde no lo cambian.
+  const startedRef = useRef(false);
+
+  // Preguntas que escribieron los profesores y el superusuario para este lenguaje.
+  useEffect(() => {
+    if (!id || !language) return;
+    let active = true;
+    getCustomQuestions(id).then((list) => {
+      if (!active || list.length === 0) return;
+      setCustomQuestions(list);
+      setQuestions((current) => (startedRef.current ? current : mixQuestions(buildQuiz(language, languages, frameworks), list)));
+    });
+    return () => {
+      active = false;
+    };
+    // Solo al abrir el quiz de este lenguaje.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
   const [ranking, setRanking] = useState<RankingRow[] | null>(null);
   const [rankingError, setRankingError] = useState<string | null>(null);
 
@@ -86,7 +117,7 @@ export default function QuizScreen() {
     resetProgress();
     setAiError(null);
     if (nextMode === 'catalogo') {
-      setQuestions(buildQuiz(language, languages, frameworks));
+      setQuestions(mixQuestions(buildQuiz(language, languages, frameworks), customQuestions));
       return;
     }
     setGenerating(true);
@@ -113,6 +144,7 @@ export default function QuizScreen() {
     if (Platform.OS !== 'web') {
       Haptics.notificationAsync(isCorrect ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error);
     }
+    startedRef.current = true;
     setSelected(option);
     if (isCorrect) setScore((s) => s + 1);
   };

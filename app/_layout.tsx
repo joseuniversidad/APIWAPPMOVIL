@@ -5,6 +5,8 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
+import { WelcomeModal } from '@/components/welcome-modal';
+import { AppConfigProvider } from '@/contexts/app-config-context';
 import { AuthProvider, useAuth } from '@/contexts/auth-context';
 import { CatalogProvider } from '@/contexts/catalog-context';
 import { NoticesProvider } from '@/contexts/notices-context';
@@ -22,7 +24,9 @@ export default function RootLayout() {
         <AuthProvider>
           <UserDataProvider>
             <NoticesProvider>
-              <RootNavigation />
+              <AppConfigProvider>
+                <RootNavigation />
+              </AppConfigProvider>
             </NoticesProvider>
           </UserDataProvider>
         </AuthProvider>
@@ -63,16 +67,19 @@ function RootNavigation() {
         {/* Publicar retos: profesores y superusuario. */}
         <Stack.Protected guard={canEnter && isTeacher}>
           <Stack.Screen name="nuevo-reto" options={{ headerShown: false, title: 'Nuevo reto' }} />
+          <Stack.Screen name="preguntas" options={{ headerShown: false, title: 'Preguntas del quiz' }} />
         </Stack.Protected>
         {/* Agregar y editar lenguajes es exclusivo del superusuario. */}
         <Stack.Protected guard={canEnter && isAdmin}>
           <Stack.Screen name="agregar-lenguaje" options={{ headerShown: false, title: 'Agregar lenguaje' }} />
+          <Stack.Screen name="framework-form" options={{ headerShown: false, title: 'Framework' }} />
         </Stack.Protected>
         <Stack.Protected guard={!canEnter}>
           <Stack.Screen name="login" options={{ headerShown: false, title: 'Iniciar sesión' }} />
           <Stack.Screen name="registro" options={{ headerShown: false, title: 'Crear cuenta' }} />
         </Stack.Protected>
       </Stack>
+      {canEnter && <WelcomeModal />}
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
     </NavigationThemeProvider>
   );

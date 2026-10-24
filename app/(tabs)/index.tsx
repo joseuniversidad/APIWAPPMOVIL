@@ -7,6 +7,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AnimatedPressable } from '@/components/animated-pressable';
+import { AdminPreviewBar, CatalogHighlights } from '@/components/catalog-highlights';
 import { DataSourceBadge } from '@/components/data-source-badge';
 import { FrameworksList } from '@/components/frameworks-list';
 import { ThemedText } from '@/components/themed-text';
@@ -78,6 +79,7 @@ export default function CatalogScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]} edges={['top']}>
       <View style={wrap}>
+        <AdminPreviewBar />
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <ThemedText style={styles.greeting} numberOfLines={1}>
@@ -203,6 +205,7 @@ export default function CatalogScreen() {
           columnWrapperStyle={numColumns > 1 ? styles.row : undefined}
           ListHeaderComponent={
             <View style={{ gap: 10, marginBottom: 4 }}>
+              {!query && filter === 'todos' && <CatalogHighlights />}
               {showContinue && lastLanguage && (
                 <AnimatedPressable
                   onPress={() => {

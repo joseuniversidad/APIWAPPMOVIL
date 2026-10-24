@@ -2,15 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
+import { useAppConfig } from '@/contexts/app-config-context';
 import { useAuth } from '@/contexts/auth-context';
 import { useCatalog } from '@/contexts/catalog-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { deleteLanguage, listUsers, resetNickname, setUserRole, type AppUser } from '@/services/admin';
+import { deleteLanguage, listUsers, resetNickname, setUserRole, suspendUser, type AppUser } from '@/services/admin';
+import type { AppConfig, NoticeTone } from '@/services/app-config';
 import { sendNotice } from '@/services/notices';
 
 const DANGER = '#d9534f';
@@ -167,7 +169,7 @@ export function UsersSection({ version, onLoaded }: { version: number; onLoaded:
               ]}>
               <ThemedText
                 style={{ fontSize: 11, fontWeight: '700', color: !u.confirmado ? '#e0a100' : u.rol === 'estudiante' ? palette.icon : u.rol === 'admin' ? palette.tint : SUCCESS }}>
-                {u.confirmado ? ROLE_LABEL[u.rol] : 'Sin confirmar'}
+                {u.suspendido_hasta ? 'Suspendido' : u.confirmado ? ROLE_LABEL[u.rol] : 'Sin confirmar'}
               </ThemedText>
             </View>
           </Pressable>
@@ -210,6 +212,43 @@ export function UsersSection({ version, onLoaded }: { version: number; onLoaded:
                 </View>
               )}
 
+              {selected.rol !== 'admin' && selected.id !== me?.id && (
+                <View style={{ gap: 8, marginTop: 6 }}>
+                  <ThemedText type="defaultSemiBold">Acceso a la app</ThemedText>
+                  {selected.suspendido_hasta ? (
+                    <>
+                      <ThemedText style={{ color: DANGER }}>
+                        {new Date(selected.suspendido_hasta).getFullYear() > 2100
+                          ? 'Cuenta suspendida sin fecha de regreso'
+                          : `Cuenta suspendida hasta el ${new Date(selected.suspendido_hasta).toLocaleDateString('es-GT')}`}
+                      </ThemedText>
+                      <Pressable
+                        disabled={saving}
+                        onPress={() => run(() => suspendUser(selected.id, 0), { suspendido_hasta: null })}
+                        style={({ pressed }) => [styles.outlineButton, { borderColor: SUCCESS }, pressed && { opacity: 0.6 }]}>
+                        <ThemedText style={{ color: SUCCESS }}>Reactivar cuenta</ThemedText>
+                      </Pressable>
+                    </>
+                  ) : (
+                    <View style={styles.actions}>
+                      {SUSPENSIONS.map((option) => (
+                        <Pressable
+                          key={option.days}
+                          disabled={saving}
+                          onPress={() =>
+                            run(() => suspendUser(selected.id, option.days), {
+                              suspendido_hasta: new Date(Date.now() + option.days * 86_400_000).toISOString(),
+                            })
+                          }
+                          style={({ pressed }) => [styles.small, { borderColor: DANGER }, pressed && { opacity: 0.6 }]}>
+                          <ThemedText style={{ color: DANGER, fontSize: 13 }}>{option.label}</ThemedText>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              )}
+
               {selected.apodo && (
                 <Pressable
                   disabled={saving}
@@ -239,7 +278,7 @@ export function UsersSection({ version, onLoaded }: { version: number; onLoaded:
 export function ContentSection({ onLoaded }: { version: number; onLoaded: () => void }) {
   const { palette, border, surface } = useColors();
   const router = useRouter();
-  const { languages, reload } = useCatalog();
+  const { languages, frameworks, getLanguageById, reload } = useCatalog();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
@@ -309,6 +348,25 @@ export function ContentSection({ onLoaded }: { version: number; onLoaded: () => 
         </Pressable>
       </View>
 
+      <View style={styles.actions}>
+        <Pressable
+          onPress={() => router.push('/framework-form')}
+          style={({ pressed }) => [styles.primary, { borderWidth: 1.5, borderColor: palette.tint }, pressed && { opacity: 0.7 }]}>
+          <Ionicons name="construct-outline" size={18} color={palette.tint} />
+          <ThemedText type="defaultSemiBold" style={{ color: palette.tint, fontSize: 14 }}>
+            Framework
+          </ThemedText>
+        </Pressable>
+        <Pressable
+          onPress={() => router.push('/preguntas')}
+          style={({ pressed }) => [styles.primary, { borderWidth: 1.5, borderColor: palette.tint }, pressed && { opacity: 0.7 }]}>
+          <Ionicons name="help-circle-outline" size={18} color={palette.tint} />
+          <ThemedText type="defaultSemiBold" style={{ color: palette.tint, fontSize: 14 }}>
+            Preguntas quiz
+          </ThemedText>
+        </Pressable>
+      </View>
+
       <ThemedView style={[styles.card, { borderColor: border }]}>
         <ThemedText type="defaultSemiBold">📣 Enviar aviso a todos</ThemedText>
         <TextInput value={title} onChangeText={setTitle} placeholder="Título" placeholderTextColor={palette.icon} maxLength={80} style={input} />
@@ -374,11 +432,245 @@ export function ContentSection({ onLoaded }: { version: number; onLoaded: () => 
           )}
         </View>
       ))}
+
+      <ThemedText style={[styles.eyebrow, { marginTop: 8 }]}>FRAMEWORKS ({frameworks.length})</ThemedText>
+      {frameworks.map((framework, index) => (
+        <Pressable
+          key={framework.id}
+          onPress={() => router.push({ pathname: '/framework-form', params: { editar: framework.id } })}
+          style={({ pressed }) => [styles.langRow, index > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: border }, pressed && { opacity: 0.6 }]}>
+          <View style={[styles.dot, { backgroundColor: framework.color }]} />
+          <ThemedText style={{ flex: 1 }}>
+            {framework.name}
+            <ThemedText style={styles.meta}> · {getLanguageById(framework.languageId)?.name ?? framework.languageId}</ThemedText>
+          </ThemedText>
+          <Ionicons name="create-outline" size={20} color={palette.tint} />
+        </Pressable>
+      ))}
     </View>
   );
 }
 
+const TONES: { id: NoticeTone; label: string; color: string }[] = [
+  { id: 'info', label: 'Información', color: '#0a7ea4' },
+  { id: 'exito', label: 'Buena noticia', color: '#2e9e5b' },
+  { id: 'alerta', label: 'Importante', color: '#d9822b' },
+];
+
+// La app: lo que ven todos al entrar. Anuncio fijado, lenguaje destacado y bienvenida.
+export function AppSection({ onLoaded }: { onLoaded: () => void }) {
+  const { palette } = useColors();
+  const { config } = useAppConfig();
+
+  useEffect(() => {
+    onLoaded();
+  }, [onLoaded]);
+
+  if (!config) {
+    return (
+      <View style={{ gap: 8, alignItems: 'center', paddingVertical: 24 }}>
+        <ActivityIndicator color={palette.tint} />
+        <ThemedText style={styles.muted}>Si no carga, falta ejecutar supabase/admin-extra.sql en Supabase.</ThemedText>
+      </View>
+    );
+  }
+  // key: cuando cambia la configuración (también desde otro celular) el formulario se vuelve a llenar.
+  return <AppForms key={config.actualizado} config={config} />;
+}
+
+function AppForms({ config }: { config: AppConfig }) {
+  const { palette, border, surface } = useColors();
+  const { save } = useAppConfig();
+  const { languages } = useCatalog();
+
+  const [anuncioActivo, setAnuncioActivo] = useState(config.anuncio_activo);
+  const [anuncioTitulo, setAnuncioTitulo] = useState(config.anuncio_titulo ?? '');
+  const [anuncioTexto, setAnuncioTexto] = useState(config.anuncio_texto ?? '');
+  const [tono, setTono] = useState<NoticeTone>(config.anuncio_tono);
+  const [anuncioLenguaje, setAnuncioLenguaje] = useState<string | null>(config.anuncio_language_id);
+  const [destacado, setDestacado] = useState<string | null>(config.destacado_language_id);
+  const [destacadoNota, setDestacadoNota] = useState(config.destacado_nota ?? '');
+  const [bienvenidaActiva, setBienvenidaActiva] = useState(config.bienvenida_activa);
+  const [bienvenidaTitulo, setBienvenidaTitulo] = useState(config.bienvenida_titulo ?? '');
+  const [bienvenidaTexto, setBienvenidaTexto] = useState(config.bienvenida_texto ?? '');
+  const [saving, setSaving] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ part: string; text: string; ok: boolean } | null>(null);
+
+  const persist = async (part: string, changes: Partial<Omit<AppConfig, 'actualizado'>>) => {
+    setSaving(part);
+    setMessage(null);
+    try {
+      await save(changes);
+      haptic();
+      setMessage({ part, text: 'Guardado. Ya lo ven todos.', ok: true });
+    } catch (e) {
+      setMessage({ part, text: e instanceof Error ? e.message : 'No se pudo guardar', ok: false });
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const input = [styles.input, { color: palette.text, borderColor: border, backgroundColor: surface }];
+
+  const languageChips = (value: string | null, onChange: (id: string | null) => void, noneLabel: string) => (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+      {[{ id: null as string | null, name: noneLabel, color: palette.icon }, ...languages].map((l) => {
+        const selected = value === l.id;
+        return (
+          <Pressable
+            key={l.id ?? 'ninguno'}
+            onPress={() => onChange(l.id)}
+            style={[styles.chip, { borderColor: selected ? l.color : border }, selected && { backgroundColor: `${l.color}33` }]}>
+            <ThemedText style={{ fontSize: 13 }}>{l.name}</ThemedText>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+
+  const feedback = (part: string) =>
+    message?.part === part ? <ThemedText style={{ color: message.ok ? SUCCESS : DANGER, fontSize: 14 }}>{message.text}</ThemedText> : null;
+
+  const saveButton = (part: string, onPress: () => void) => (
+    <Pressable
+      onPress={onPress}
+      disabled={saving !== null}
+      style={({ pressed }) => [styles.primary, { backgroundColor: palette.tint }, (pressed || saving === part) && { opacity: 0.6 }]}>
+      {saving === part ? (
+        <ActivityIndicator color={palette.background} />
+      ) : (
+        <ThemedText type="defaultSemiBold" style={{ color: palette.background }}>
+          Guardar
+        </ThemedText>
+      )}
+    </Pressable>
+  );
+
+  const toneColor = TONES.find((t) => t.id === tono)?.color ?? palette.tint;
+
+  return (
+    <View style={{ gap: 14 }}>
+      <ThemedView style={[styles.card, { borderColor: border }]}>
+        <View style={styles.switchRow}>
+          <View style={{ flex: 1 }}>
+            <ThemedText type="defaultSemiBold">📌 Anuncio fijado</ThemedText>
+            <ThemedText style={styles.meta}>Aparece arriba del catálogo para todos.</ThemedText>
+          </View>
+          <Switch value={anuncioActivo} onValueChange={setAnuncioActivo} trackColor={{ true: palette.tint }} />
+        </View>
+        <TextInput value={anuncioTitulo} onChangeText={setAnuncioTitulo} placeholder="Título (ej. ¡Semana de Python!)" placeholderTextColor={palette.icon} maxLength={80} style={input} />
+        <TextInput
+          value={anuncioTexto}
+          onChangeText={setAnuncioTexto}
+          placeholder="Mensaje"
+          placeholderTextColor={palette.icon}
+          maxLength={300}
+          multiline
+          textAlignVertical="top"
+          style={[input, { minHeight: 70 }]}
+        />
+        <View style={styles.chips}>
+          {TONES.map((t) => (
+            <Pressable
+              key={t.id}
+              onPress={() => setTono(t.id)}
+              style={[styles.chip, { borderColor: tono === t.id ? t.color : border }, tono === t.id && { backgroundColor: `${t.color}26` }]}>
+              <ThemedText style={{ fontSize: 13 }}>{t.label}</ThemedText>
+            </Pressable>
+          ))}
+        </View>
+        <ThemedText style={styles.meta}>Al tocarlo abre:</ThemedText>
+        {languageChips(anuncioLenguaje, setAnuncioLenguaje, 'Nada')}
+        {anuncioActivo && anuncioTitulo.trim().length > 0 && (
+          <View style={[styles.preview, { borderColor: toneColor, backgroundColor: `${toneColor}1A` }]}>
+            <ThemedText type="defaultSemiBold" style={{ color: toneColor }}>
+              {anuncioTitulo}
+            </ThemedText>
+            {anuncioTexto.trim().length > 0 && <ThemedText style={{ fontSize: 14 }}>{anuncioTexto}</ThemedText>}
+          </View>
+        )}
+        {feedback('anuncio')}
+        {saveButton('anuncio', () => {
+          if (anuncioActivo && anuncioTitulo.trim().length < 2) {
+            setMessage({ part: 'anuncio', text: 'Escribe el título del anuncio', ok: false });
+            return;
+          }
+          persist('anuncio', {
+            anuncio_activo: anuncioActivo,
+            anuncio_titulo: anuncioTitulo.trim() || null,
+            anuncio_texto: anuncioTexto.trim() || null,
+            anuncio_tono: tono,
+            anuncio_language_id: anuncioLenguaje,
+          });
+        })}
+      </ThemedView>
+
+      <ThemedView style={[styles.card, { borderColor: border }]}>
+        <ThemedText type="defaultSemiBold">⭐ Lenguaje destacado de la semana</ThemedText>
+        <ThemedText style={styles.meta}>Se muestra como tarjeta especial en el catálogo.</ThemedText>
+        {languageChips(destacado, setDestacado, 'Ninguno')}
+        <TextInput
+          value={destacadoNota}
+          onChangeText={setDestacadoNota}
+          placeholder="Nota (ej. Ideal para empezar a programar)"
+          placeholderTextColor={palette.icon}
+          maxLength={160}
+          style={input}
+        />
+        {feedback('destacado')}
+        {saveButton('destacado', () => persist('destacado', { destacado_language_id: destacado, destacado_nota: destacadoNota.trim() || null }))}
+      </ThemedView>
+
+      <ThemedView style={[styles.card, { borderColor: border }]}>
+        <View style={styles.switchRow}>
+          <View style={{ flex: 1 }}>
+            <ThemedText type="defaultSemiBold">👋 Mensaje de bienvenida</ThemedText>
+            <ThemedText style={styles.meta}>Lo ve una vez cada persona la primera vez que entra.</ThemedText>
+          </View>
+          <Switch value={bienvenidaActiva} onValueChange={setBienvenidaActiva} trackColor={{ true: palette.tint }} />
+        </View>
+        <TextInput value={bienvenidaTitulo} onChangeText={setBienvenidaTitulo} placeholder="Título" placeholderTextColor={palette.icon} maxLength={80} style={input} />
+        <TextInput
+          value={bienvenidaTexto}
+          onChangeText={setBienvenidaTexto}
+          placeholder="Mensaje para los nuevos usuarios"
+          placeholderTextColor={palette.icon}
+          maxLength={500}
+          multiline
+          textAlignVertical="top"
+          style={[input, { minHeight: 90 }]}
+        />
+        {feedback('bienvenida')}
+        {saveButton('bienvenida', () =>
+          persist('bienvenida', {
+            bienvenida_activa: bienvenidaActiva,
+            bienvenida_titulo: bienvenidaTitulo.trim() || null,
+            bienvenida_texto: bienvenidaTexto.trim() || null,
+          })
+        )}
+      </ThemedView>
+    </View>
+  );
+}
+
+const SUSPENSIONS = [
+  { days: 1, label: '1 día' },
+  { days: 7, label: '7 días' },
+  { days: 36500, label: 'Indefinido' },
+];
+
 const styles = StyleSheet.create({
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  preview: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    gap: 4,
+  },
   muted: {
     opacity: 0.65,
   },

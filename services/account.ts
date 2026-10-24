@@ -42,6 +42,7 @@ function friendly(message: string): string {
   if (message.includes('already registered')) return 'Ya existe una cuenta con ese correo. Inicia sesión.';
   if (message.includes('rate limit')) return 'Demasiados intentos. Espera un momento y vuelve a intentarlo.';
   if (message.includes('Password should be')) return 'La contraseña debe tener al menos 8 caracteres';
+  if (message.toLowerCase().includes('banned')) return 'Tu cuenta está suspendida. Habla con el administrador.';
   return message;
 }
 

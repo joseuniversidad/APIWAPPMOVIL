@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as WebBrowser from 'expo-web-browser';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -47,6 +48,7 @@ export default function ProfileScreen() {
   const { contentMaxWidth } = useResponsive();
   const { languages, frameworks, getLanguageById } = useCatalog();
   const { session, user, role, signOut } = useAuth();
+  const router = useRouter();
   const {
     quizStats, streak, bestStreak, activeDays, favorites, nickname, updateNickname, lastLanguageId,
     steps, solvedChallenges, classesCount, isLanguageDone,
@@ -129,10 +131,14 @@ export default function ProfileScreen() {
           contentMaxWidth ? { maxWidth: contentMaxWidth, alignSelf: 'center', width: '100%' } : undefined,
         ]}>
         <View style={styles.hero}>
-          <View style={[styles.avatar, { backgroundColor: palette.tint }]}>
-            <ThemedText style={styles.avatarText} lightColor="#fff" darkColor="#000">
-              {initials || '?'}
-            </ThemedText>
+          <View style={[styles.avatar, { backgroundColor: role === 'admin' ? '#16213e' : palette.tint }]}>
+            {role === 'admin' ? (
+              <Ionicons name="shield-checkmark" size={34} color="#f5b301" />
+            ) : (
+              <ThemedText style={styles.avatarText} lightColor="#fff" darkColor="#000">
+                {initials || '?'}
+              </ThemedText>
+            )}
           </View>
           <ThemedText type="subtitle" style={{ textAlign: 'center' }}>
             {displayName}
@@ -144,83 +150,114 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <View style={styles.stats}>
-          <Stat value={String(quizStats.attempts)} label="quizzes" border={border} />
-          <Stat value={quizStats.averagePercent === null ? '—' : `${quizStats.averagePercent}%`} label="aciertos" border={border} />
-          <Stat value={`${streak}🔥`} label={streak === 1 ? 'día seguido' : 'días seguidos'} border={border} />
-        </View>
-        <ThemedText style={[styles.muted, { textAlign: 'center', fontSize: 13 }]}>
-          {activeDays} {activeDays === 1 ? 'día' : 'días'} de estudio · {favorites.length}{' '}
-          {favorites.length === 1 ? 'favorito' : 'favoritos'}
-        </ThemedText>
-
-        <ThemedView style={[styles.card, { borderColor: border }]}>
-          <View style={styles.inline}>
-            <ThemedText type="defaultSemiBold" style={{ flex: 1 }}>
-              Insignias · {earned} de {badges.length}
+        {role === 'admin' ? (
+          <ThemedView style={[styles.adminCard, { backgroundColor: '#16213e' }]}>
+            <ThemedText style={styles.adminEyebrow}>HERRAMIENTAS DE ADMINISTRADOR</ThemedText>
+            <ThemedText lightColor="#c9d1e6" darkColor="#c9d1e6" style={{ fontSize: 14 }}>
+              Tu cuenta no participa en rankings ni insignias. Desde el panel controlas lo que ven los usuarios.
             </ThemedText>
-            <Pressable onPress={() => setShowAllBadges((v) => !v)} hitSlop={8}>
-              <ThemedText style={{ color: palette.tint, fontSize: 14 }}>{showAllBadges ? 'Ver menos' : 'Ver todas'}</ThemedText>
-            </Pressable>
-          </View>
-          <View style={styles.badges}>
-            {[...badges]
-              .sort((a, b) => Number(b.earned) - Number(a.earned))
-              .slice(0, showAllBadges ? badges.length : 8)
-              .map((badge) => (
-                <View
-                  key={badge.id}
-                  accessibilityLabel={`${badge.title}${badge.earned ? ', ganada' : `, pendiente: ${badge.hint}`}`}
-                  style={[styles.badgeTile, { borderColor: badge.earned ? palette.tint : border }, !badge.earned && styles.badgeLocked]}>
-                  <ThemedText style={styles.badgeEmoji}>{badge.emoji}</ThemedText>
-                  <ThemedText style={styles.badgeTitle} numberOfLines={2}>
-                    {badge.title}
-                  </ThemedText>
-                  {showAllBadges && !badge.earned && (
-                    <ThemedText style={styles.badgeHint} numberOfLines={3}>
-                      {badge.hint}
-                    </ThemedText>
-                  )}
-                </View>
-              ))}
-          </View>
-        </ThemedView>
-
-        <ThemedView style={[styles.card, { borderColor: border }]}>
-          <ThemedText type="defaultSemiBold">Apodo para el ranking</ThemedText>
-          <View style={styles.inline}>
-            <TextInput
-              value={draft}
-              onChangeText={setEditedNick}
-              placeholder="Ej. CodeNinja"
-              placeholderTextColor={palette.icon}
-              maxLength={24}
-              autoCorrect={false}
-              returnKeyType="done"
-              onSubmitEditing={saveNick}
-              style={[styles.input, { color: palette.text, borderColor: border }]}
-            />
-            <Pressable
-              onPress={saveNick}
-              disabled={savingNick || draft.trim().length < 2 || draft.trim() === nickname}
-              style={({ pressed }) => [
-                styles.smallButton,
-                { backgroundColor: palette.tint },
-                (pressed || savingNick || draft.trim().length < 2 || draft.trim() === nickname) && { opacity: 0.5 },
-              ]}>
-              {savingNick ? (
-                <ActivityIndicator color={palette.background} size="small" />
-              ) : (
-                <ThemedText type="defaultSemiBold" style={{ color: palette.background, fontSize: 14 }}>
-                  Guardar
+            {[
+              { icon: 'speedometer-outline' as const, label: 'Abrir el panel', path: '/admin' as const },
+              { icon: 'code-slash-outline' as const, label: 'Agregar lenguaje', path: '/agregar-lenguaje' as const },
+              { icon: 'construct-outline' as const, label: 'Agregar framework', path: '/framework-form' as const },
+              { icon: 'help-circle-outline' as const, label: 'Preguntas del quiz', path: '/preguntas' as const },
+            ].map((item) => (
+              <Pressable
+                key={item.label}
+                onPress={() => {
+                  haptic();
+                  router.navigate(item.path);
+                }}
+                style={({ pressed }) => [styles.adminLink, pressed && { opacity: 0.7 }]}>
+                <Ionicons name={item.icon} size={20} color="#f5b301" />
+                <ThemedText style={{ flex: 1 }} lightColor="#ffffff" darkColor="#ffffff">
+                  {item.label}
                 </ThemedText>
-              )}
-            </Pressable>
+                <Ionicons name="chevron-forward" size={16} color="#c9d1e6" />
+              </Pressable>
+            ))}
+          </ThemedView>
+        ) : (
+          <>
+          <View style={styles.stats}>
+            <Stat value={String(quizStats.attempts)} label="quizzes" border={border} />
+            <Stat value={quizStats.averagePercent === null ? '—' : `${quizStats.averagePercent}%`} label="aciertos" border={border} />
+            <Stat value={`${streak}🔥`} label={streak === 1 ? 'día seguido' : 'días seguidos'} border={border} />
           </View>
-          {nickMessage && (
-            <ThemedText style={{ fontSize: 13, color: nickMessage.error ? DANGER : '#2e9e5b' }}>{nickMessage.text}</ThemedText>
-          )}
-        </ThemedView>
+          <ThemedText style={[styles.muted, { textAlign: 'center', fontSize: 13 }]}>
+            {activeDays} {activeDays === 1 ? 'día' : 'días'} de estudio · {favorites.length}{' '}
+            {favorites.length === 1 ? 'favorito' : 'favoritos'}
+          </ThemedText>
+
+          <ThemedView style={[styles.card, { borderColor: border }]}>
+            <View style={styles.inline}>
+              <ThemedText type="defaultSemiBold" style={{ flex: 1 }}>
+                Insignias · {earned} de {badges.length}
+              </ThemedText>
+              <Pressable onPress={() => setShowAllBadges((v) => !v)} hitSlop={8}>
+                <ThemedText style={{ color: palette.tint, fontSize: 14 }}>{showAllBadges ? 'Ver menos' : 'Ver todas'}</ThemedText>
+              </Pressable>
+            </View>
+            <View style={styles.badges}>
+              {[...badges]
+                .sort((a, b) => Number(b.earned) - Number(a.earned))
+                .slice(0, showAllBadges ? badges.length : 8)
+                .map((badge) => (
+                  <View
+                    key={badge.id}
+                    accessibilityLabel={`${badge.title}${badge.earned ? ', ganada' : `, pendiente: ${badge.hint}`}`}
+                    style={[styles.badgeTile, { borderColor: badge.earned ? palette.tint : border }, !badge.earned && styles.badgeLocked]}>
+                    <ThemedText style={styles.badgeEmoji}>{badge.emoji}</ThemedText>
+                    <ThemedText style={styles.badgeTitle} numberOfLines={2}>
+                      {badge.title}
+                    </ThemedText>
+                    {showAllBadges && !badge.earned && (
+                      <ThemedText style={styles.badgeHint} numberOfLines={3}>
+                        {badge.hint}
+                      </ThemedText>
+                    )}
+                  </View>
+                ))}
+            </View>
+          </ThemedView>
+
+          <ThemedView style={[styles.card, { borderColor: border }]}>
+            <ThemedText type="defaultSemiBold">Apodo para el ranking</ThemedText>
+            <View style={styles.inline}>
+              <TextInput
+                value={draft}
+                onChangeText={setEditedNick}
+                placeholder="Ej. CodeNinja"
+                placeholderTextColor={palette.icon}
+                maxLength={24}
+                autoCorrect={false}
+                returnKeyType="done"
+                onSubmitEditing={saveNick}
+                style={[styles.input, { color: palette.text, borderColor: border }]}
+              />
+              <Pressable
+                onPress={saveNick}
+                disabled={savingNick || draft.trim().length < 2 || draft.trim() === nickname}
+                style={({ pressed }) => [
+                  styles.smallButton,
+                  { backgroundColor: palette.tint },
+                  (pressed || savingNick || draft.trim().length < 2 || draft.trim() === nickname) && { opacity: 0.5 },
+                ]}>
+                {savingNick ? (
+                  <ActivityIndicator color={palette.background} size="small" />
+                ) : (
+                  <ThemedText type="defaultSemiBold" style={{ color: palette.background, fontSize: 14 }}>
+                    Guardar
+                  </ThemedText>
+                )}
+              </Pressable>
+            </View>
+            {nickMessage && (
+              <ThemedText style={{ fontSize: 13, color: nickMessage.error ? DANGER : '#2e9e5b' }}>{nickMessage.text}</ThemedText>
+            )}
+          </ThemedView>
+          </>
+        )}
 
         <ThemedView style={[styles.card, { borderColor: border }]}>
           <ThemedText type="defaultSemiBold">Apariencia</ThemedText>
@@ -452,6 +489,25 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 10,
     borderWidth: 1.5,
+  },
+  adminCard: {
+    borderRadius: 16,
+    padding: 16,
+    gap: 8,
+  },
+  adminEyebrow: {
+    fontSize: 11,
+    letterSpacing: 1,
+    fontWeight: '800',
+    color: '#f5b301',
+  },
+  adminLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.15)',
   },
   badges: {
     flexDirection: 'row',

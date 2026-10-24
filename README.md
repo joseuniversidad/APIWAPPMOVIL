@@ -12,6 +12,7 @@ Ejecuta los archivos de `supabase/` en **SQL Editor → Run**, en este orden:
 4. `cuentas.sql` (nombre de cada cuenta, roles, usuarios, editar y borrar lenguajes)
 5. `superusuario.sql` (antes, sigue los dos pasos que explica al inicio del archivo)
 6. `clases-retos-avisos.sql` (modo profesor, materiales, retos semanales y avisos)
+7. `admin-extra.sql` (anuncio fijado, lenguaje destacado, bienvenida, frameworks, preguntas del quiz y suspender cuentas)
 
 Lo que consume el compañero no cambia: su usuario sigue entrando y `languages` y `frameworks`
 conservan sus columnas y su política de lectura.
