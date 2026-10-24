@@ -18,10 +18,23 @@ import Animated, { FadeInUp } from 'react-native-reanimated';
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
 import { useCatalog } from '@/contexts/catalog-context';
+import { useUserData } from '@/contexts/user-data-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useResponsive } from '@/hooks/use-responsive';
 import { askAssistant, type ChatMessage } from '@/services/ai-chat';
 import { isSupabaseConfigured } from '@/services/supabase';
+
+const FOLLOW_UPS = ['Explícalo más simple', 'Dame otro ejemplo', 'Hazme una pregunta de práctica'];
+
+const MONO = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
+
+// Separa el texto de los bloques de código (```lenguaje ... ```) para mostrarlos en monoespaciada.
+function splitCode(content: string): { code: boolean; text: string }[] {
+  return content
+    .split(/```[\w+#-]*\n?/)
+    .map((text, index) => ({ code: index % 2 === 1, text: index % 2 === 1 ? text.replace(/\n$/, '') : text.trim() }))
+    .filter((part) => part.text);
+}
 
 const GENERAL_SUGGESTIONS = [
   '¿Qué lenguaje me recomiendas para empezar?',
@@ -37,6 +50,7 @@ export default function AssistantScreen() {
   const { lenguaje } = useLocalSearchParams<{ lenguaje?: string }>();
   const { getLanguageById } = useCatalog();
   const language = getLanguageById(lenguaje);
+  const { recordActivity } = useUserData();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -65,6 +79,7 @@ export default function AssistantScreen() {
     try {
       const reply = await askAssistant(history, language?.name);
       setMessages([...history, { role: 'assistant', content: reply }]);
+      recordActivity();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Error al consultar el asistente');
     } finally {
@@ -83,11 +98,16 @@ export default function AssistantScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }} edges={['top']}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={[styles.container, contentMaxWidth ? { maxWidth: contentMaxWidth, alignSelf: 'center', width: '100%' } : undefined]}>
-          <View style={styles.header}>
+          <View style={[styles.header, { borderColor: bubbleBorder }]}>
+            <View style={[styles.headerIcon, { backgroundColor: `${palette.tint}1F` }]}>
+              <Ionicons name="sparkles" size={18} color={palette.tint} />
+            </View>
             <View style={{ flex: 1 }}>
-              <ThemedText type="title">Asistente IA</ThemedText>
-              <ThemedText style={styles.muted}>
-                {language ? `Preguntas sobre ${language.name}` : 'Resuelve tus dudas sobre lenguajes de programación'}
+              <ThemedText type="defaultSemiBold" style={{ fontSize: 18 }}>
+                Asistente IA
+              </ThemedText>
+              <ThemedText style={[styles.muted, { fontSize: 13 }]} numberOfLines={1}>
+                {language ? `Contexto: ${language.name}` : 'Dudas sobre lenguajes y programación'}
               </ThemedText>
             </View>
             {messages.length > 0 && (
@@ -147,9 +167,25 @@ export default function AssistantScreen() {
                       <ThemedText style={[styles.muted, { fontSize: 12 }]}>Asistente</ThemedText>
                     </View>
                   )}
-                  <ThemedText selectable style={mine ? { color: palette.background } : undefined}>
-                    {message.content}
-                  </ThemedText>
+                  {mine ? (
+                    <ThemedText selectable style={{ color: palette.background }}>
+                      {message.content}
+                    </ThemedText>
+                  ) : (
+                    splitCode(message.content).map((part, partIndex) =>
+                      part.code ? (
+                        <View key={partIndex} style={styles.codeBlock}>
+                          <ThemedText selectable style={styles.codeText} lightColor="#e6edf3" darkColor="#e6edf3">
+                            {part.text}
+                          </ThemedText>
+                        </View>
+                      ) : (
+                        <ThemedText key={partIndex} selectable>
+                          {part.text}
+                        </ThemedText>
+                      )
+                    )
+                  )}
                 </Animated.View>
               );
             })}
@@ -162,6 +198,24 @@ export default function AssistantScreen() {
             )}
             {error && <ThemedText style={styles.error}>{error}</ThemedText>}
           </ScrollView>
+
+          {messages.length > 0 && !sending && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              style={{ flexGrow: 0 }}
+              contentContainerStyle={styles.followUps}>
+              {FOLLOW_UPS.map((s) => (
+                <Pressable
+                  key={s}
+                  onPress={() => send(s)}
+                  style={({ pressed }) => [styles.followUp, { borderColor: `${palette.tint}66` }, pressed && { opacity: 0.6 }]}>
+                  <ThemedText style={{ color: palette.tint, fontSize: 13 }}>{s}</ThemedText>
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
 
           <View style={[styles.inputRow, { borderColor: bubbleBorder }]}>
             <TextInput
@@ -198,10 +252,40 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingTop: 10,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  headerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  codeBlock: {
+    backgroundColor: '#161b22',
+    borderRadius: 10,
+    padding: 10,
+    marginVertical: 2,
+  },
+  codeText: {
+    fontFamily: MONO,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  followUps: {
+    gap: 8,
+    paddingHorizontal: 12,
     paddingBottom: 8,
+  },
+  followUp: {
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   muted: {
     opacity: 0.7,

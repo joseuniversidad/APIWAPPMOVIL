@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -60,8 +60,10 @@ export default function ApiScreen() {
             contentMaxWidth ? { maxWidth: contentMaxWidth, alignSelf: 'center', width: '100%' } : undefined,
           ]}>
           <View style={{ gap: 4 }}>
-            <ThemedText type="title">API</ThemedText>
-            <ThemedText style={styles.muted}>Datos consumidos desde la API del compañero con token Bearer.</ThemedText>
+            <ThemedText type="title" style={{ fontSize: 28, lineHeight: 34 }}>
+              Mis datos
+            </ThemedText>
+            <ThemedText style={styles.muted}>Reportes y presupuestos desde la API del compañero.</ThemedText>
           </View>
           {content}
         </ScrollView>
@@ -136,56 +138,36 @@ function LoginForm() {
   );
 }
 
+// Solo cambia la presentación: ReporteCard y PresupuestosCard consumen la API igual que antes.
 function Dashboard() {
-  const { session, signOut } = useAuth();
+  const colorScheme = useColorScheme() ?? 'light';
+  const palette = Colors[colorScheme];
+  const { session, signOutApi } = useAuth();
   const userName = typeof session?.user?.name === 'string' ? session.user.name : null;
 
   return (
     <>
-      <ThemedView style={styles.card}>
-        <ThemedText type="subtitle">Sesión</ThemedText>
-        {userName && <ThemedText type="defaultSemiBold">{userName}</ThemedText>}
-        <ThemedText>{session?.email}</ThemedText>
-        <TokenExpiry expiresAt={session?.expiresAt ?? null} />
-        <ThemedText style={[styles.muted, styles.mono]} numberOfLines={1}>
-          Token: {session?.token.slice(0, 12)}…
-        </ThemedText>
+      <ThemedView style={[styles.sessionRow, { borderColor: colorScheme === 'dark' ? '#2a2d2e' : '#e6e8ea' }]}>
+        <Ionicons name="person-circle-outline" size={28} color={palette.tint} />
+        <View style={{ flex: 1 }}>
+          <ThemedText type="defaultSemiBold" numberOfLines={1}>
+            {userName ?? session?.email}
+          </ThemedText>
+          <ThemedText style={[styles.muted, { fontSize: 13 }]}>Detalles del token en Perfil</ThemedText>
+        </View>
         <Pressable
-          onPress={signOut}
+          onPress={signOutApi}
+          hitSlop={8}
+          accessibilityRole="button"
           style={({ pressed }) => [styles.smallButton, { borderColor: DANGER }, pressed && { opacity: 0.6 }]}>
           <Ionicons name="log-out-outline" size={16} color={DANGER} />
-          <ThemedText style={{ color: DANGER }}>Cerrar sesión</ThemedText>
+          <ThemedText style={{ color: DANGER, fontSize: 14 }}>Salir</ThemedText>
         </Pressable>
       </ThemedView>
 
       <ReporteCard />
       <PresupuestosCard />
     </>
-  );
-}
-
-// Muestra cuándo expira el token con una cuenta regresiva en vivo.
-function TokenExpiry({ expiresAt }: { expiresAt: number | null }) {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  if (!expiresAt) {
-    return <ThemedText style={styles.muted}>La API no informó la fecha de expiración del token</ThemedText>;
-  }
-
-  const remaining = Math.max(0, Math.floor((expiresAt - now) / 1000));
-  const hours = Math.floor(remaining / 3600);
-  const minutes = Math.floor((remaining % 3600) / 60);
-  const seconds = remaining % 60;
-
-  return (
-    <ThemedText style={styles.muted}>
-      Token expira: {new Date(expiresAt).toLocaleString('es-GT')} ({hours}h {minutes}m {seconds}s)
-    </ThemedText>
   );
 }
 
@@ -203,9 +185,6 @@ const styles = StyleSheet.create({
   muted: {
     opacity: 0.7,
   },
-  mono: {
-    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
-  },
   input: {
     borderWidth: 1,
     borderRadius: 10,
@@ -222,10 +201,17 @@ const styles = StyleSheet.create({
   error: {
     color: DANGER,
   },
+  sessionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
   smallButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
     gap: 6,
     borderWidth: 1.5,
     borderRadius: 10,

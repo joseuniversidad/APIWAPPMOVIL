@@ -6,9 +6,15 @@ import { useCatalog } from '@/contexts/catalog-context';
 
 // Indica de dónde vienen los datos del catálogo: de la API propia en Supabase o del respaldo local.
 export function DataSourceBadge() {
-  const { source, loading, error, reload } = useCatalog();
+  const { source, cachedAt, loading, error, reload } = useCatalog();
   const fromCloud = source === 'supabase';
   const color = fromCloud ? '#2e9e5b' : '#e0a100';
+  const offlineLabel =
+    source === 'cache' && cachedAt
+      ? `Sin conexión · copia del ${new Date(cachedAt).toLocaleDateString('es-GT')}`
+      : error
+        ? 'Datos locales · reintentar'
+        : 'Datos locales';
 
   return (
     <Pressable
@@ -19,10 +25,10 @@ export function DataSourceBadge() {
       {loading ? (
         <ActivityIndicator size="small" color={color} />
       ) : (
-        <Ionicons name={fromCloud ? 'cloud-done-outline' : 'phone-portrait-outline'} size={14} color={color} />
+        <Ionicons name={fromCloud ? 'cloud-done-outline' : source === 'cache' ? 'cloud-offline-outline' : 'phone-portrait-outline'} size={14} color={color} />
       )}
       <ThemedText style={[styles.text, { color }]}>
-        {loading ? 'Conectando con Supabase…' : fromCloud ? 'Datos desde Supabase' : error ? 'Datos locales · reintentar' : 'Datos locales'}
+        {loading ? 'Conectando con Supabase…' : fromCloud ? 'Datos desde Supabase' : offlineLabel}
       </ThemedText>
     </Pressable>
   );

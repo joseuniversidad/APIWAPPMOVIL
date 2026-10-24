@@ -22,6 +22,43 @@ Cómo responder:
 
 Latency-sensitive; begin your visible answer immediately.`;
 
+const QUIZ_SYSTEM_PROMPT = `Eres el generador de quizzes de MiApp54, un catálogo educativo de lenguajes de programación.
+Escribe preguntas en español para estudiantes que están empezando a programar.
+
+Reglas:
+- Cada pregunta tiene exactamente 4 opciones distintas y una sola correcta.
+- "respuesta" debe ser idéntica, carácter por carácter, a una de las opciones.
+- Mezcla temas: historia, sintaxis básica, casos de uso, herramientas y conceptos del lenguaje.
+- Evita datos dudosos; si no estás seguro de un dato, no hagas una pregunta sobre él.
+- La explicación es una oración corta que dice por qué la respuesta es correcta.`;
+
+const QUIZ_QUESTIONS = 5;
+
+// Esquema JSON que Claude debe respetar (structured outputs).
+const QUIZ_SCHEMA = {
+  type: 'object',
+  properties: {
+    preguntas: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          pregunta: { type: 'string' },
+          opciones: { type: 'array', items: { type: 'string' } },
+          respuesta: { type: 'string' },
+          explicacion: { type: 'string' },
+        },
+        required: ['pregunta', 'opciones', 'respuesta', 'explicacion'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['preguntas'],
+  additionalProperties: false,
+};
+
+type QuizQuestion = { pregunta: string; opciones: string[]; respuesta: string; explicacion: string };
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -64,19 +101,22 @@ Deno.serve(async (req) => {
   if (userError || !userData.user) return json({ error: 'Sesión inválida o expirada' }, 401);
 
   // 2. Validar el cuerpo de la petición.
-  let body: { messages?: unknown; languageName?: unknown };
+  let body: { messages?: unknown; languageName?: unknown; mode?: unknown };
   try {
     body = await req.json();
   } catch {
     return json({ error: 'El cuerpo debe ser JSON' }, 400);
   }
-  const messages = parseMessages(body.messages);
+  const isQuiz = body.mode === 'quiz';
+  const languageName = typeof body.languageName === 'string' ? body.languageName.trim().slice(0, 40) : '';
+  if (isQuiz && !languageName) return json({ error: 'Falta el lenguaje del quiz' }, 400);
+  const messages = isQuiz ? [] : parseMessages(body.messages);
   if (!messages) return json({ error: 'El historial de mensajes no es válido' }, 400);
 
   // Contexto opcional: el lenguaje que el usuario está viendo en la app.
-  if (typeof body.languageName === 'string' && body.languageName.trim()) {
+  if (!isQuiz && languageName) {
     const last = messages[messages.length - 1];
-    last.content = `[El usuario está viendo el lenguaje ${body.languageName.trim().slice(0, 40)} en la app]\n${last.content}`;
+    last.content = `[El usuario está viendo el lenguaje ${languageName} en la app]\n${last.content}`;
   }
 
   // 3. Límite diario por usuario (la tabla ai_chat_usage tiene RLS: cada usuario ve solo sus filas).
@@ -92,6 +132,7 @@ Deno.serve(async (req) => {
   }
 
   // 4. Llamar a Claude.
+  if (isQuiz) return generateQuiz(supabase, languageName);
   try {
     const response = await anthropic.beta.messages.create({
       model: MODEL,
@@ -120,18 +161,70 @@ Deno.serve(async (req) => {
 
     return json({ reply: reply || 'No obtuve una respuesta. Intenta reformular tu pregunta.' });
   } catch (error) {
-    if (error instanceof Anthropic.RateLimitError) {
-      return json({ error: 'El asistente está recibiendo muchas preguntas. Intenta en un minuto.' }, 429);
-    }
-    if (error instanceof Anthropic.AuthenticationError) {
-      console.error('ANTHROPIC_API_KEY inválida o ausente');
-      return json({ error: 'El asistente no está configurado correctamente.' }, 500);
-    }
-    if (error instanceof Anthropic.APIError) {
-      console.error(`Error de la API de Claude ${error.status}: ${error.message}`);
-      return json({ error: 'El asistente no está disponible en este momento.' }, 502);
-    }
-    console.error(error);
-    return json({ error: 'Error inesperado del asistente.' }, 500);
+    return handleClaudeError(error);
   }
 });
+
+function handleClaudeError(error: unknown) {
+  if (error instanceof Anthropic.RateLimitError) {
+    return json({ error: 'El asistente está recibiendo muchas preguntas. Intenta en un minuto.' }, 429);
+  }
+  if (error instanceof Anthropic.AuthenticationError) {
+    console.error('ANTHROPIC_API_KEY inválida o ausente');
+    return json({ error: 'El asistente no está configurado correctamente.' }, 500);
+  }
+  if (error instanceof Anthropic.APIError) {
+    console.error(`Error de la API de Claude ${error.status}: ${error.message}`);
+    return json({ error: 'El asistente no está disponible en este momento.' }, 502);
+  }
+  console.error(error);
+  return json({ error: 'Error inesperado del asistente.' }, 500);
+}
+
+// Genera un quiz nuevo sobre un lenguaje. Cuenta como un mensaje dentro del límite diario.
+async function generateQuiz(supabase: ReturnType<typeof createClient>, languageName: string) {
+  try {
+    const response = await anthropic.beta.messages.create({
+      model: MODEL,
+      max_tokens: 16000,
+      output_config: {
+        effort: 'low',
+        format: { type: 'json_schema', schema: QUIZ_SCHEMA },
+      },
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      system: QUIZ_SYSTEM_PROMPT,
+      messages: [
+        {
+          role: 'user',
+          content: `Crea ${QUIZ_QUESTIONS} preguntas de opción múltiple sobre el lenguaje de programación ${languageName}.`,
+        },
+      ],
+    });
+
+    if (response.stop_reason === 'refusal') return json({ error: 'No se pudo generar el quiz para este lenguaje.' }, 422);
+
+    const text = response.content
+      .filter((block) => block.type === 'text')
+      .map((block) => block.text)
+      .join('');
+    const parsed = JSON.parse(text) as { preguntas?: QuizQuestion[] };
+
+    // Se descartan preguntas mal formadas (respuesta que no está entre las opciones, opciones repetidas, etc.).
+    const questions = (parsed.preguntas ?? [])
+      .map((q) => ({ ...q, opciones: [...new Set(q.opciones.map((o) => o.trim()))], respuesta: q.respuesta.trim() }))
+      .filter((q) => q.pregunta.trim() && q.opciones.length === 4 && q.opciones.includes(q.respuesta))
+      .slice(0, QUIZ_QUESTIONS);
+    if (questions.length < 3) return json({ error: 'La IA no generó preguntas válidas. Intenta de nuevo.' }, 502);
+
+    await supabase.from('ai_chat_usage').insert({
+      input_tokens: response.usage.input_tokens,
+      output_tokens: response.usage.output_tokens,
+    });
+
+    return json({ questions });
+  } catch (error) {
+    if (error instanceof SyntaxError) return json({ error: 'La IA devolvió un formato inválido. Intenta de nuevo.' }, 502);
+    return handleClaudeError(error);
+  }
+}

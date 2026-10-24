@@ -125,17 +125,9 @@ export type NewLanguage = Omit<ProgrammingLanguage, 'variablesExample' | 'condit
   loopsExample: ProgrammingLanguage['loopsExample'] | null;
 };
 
-// Guarda el lenguaje con la función agregar_lenguaje (ver supabase/agregar-lenguaje.sql),
-// que valida la clave de administrador. Devuelve el id del lenguaje creado.
-export async function addLanguage(language: NewLanguage, adminKey: string): Promise<string> {
-  if (!supabase) throw new Error('Supabase no está configurado');
-  await ensureSupabaseSession();
-
-  const row: Omit<LanguageRow, 'variables_example' | 'conditionals_example' | 'loops_example'> & {
-    variables_example: NewLanguage['variablesExample'];
-    conditionals_example: NewLanguage['conditionalsExample'];
-    loops_example: NewLanguage['loopsExample'];
-  } = {
+// Convierte el lenguaje del formulario a las columnas de la tabla languages (snake_case).
+export function languageToRow(language: NewLanguage) {
+  return {
     id: language.id,
     name: language.name,
     tagline: language.tagline,
@@ -153,10 +145,22 @@ export async function addLanguage(language: NewLanguage, adminKey: string): Prom
     steps: language.steps,
     courses: language.courses,
   };
+}
+
+// Guarda el lenguaje con la función agregar_lenguaje (ver supabase/superusuario.sql).
+// Si quien llama es el superusuario no se necesita la clave. Devuelve el id del lenguaje creado.
+export async function addLanguage(language: NewLanguage, adminKey: string): Promise<string> {
+  if (!supabase) throw new Error('Supabase no está configurado');
+  await ensureSupabaseSession();
+
+  const row = languageToRow(language);
 
   const { data, error } = await supabase.rpc('agregar_lenguaje', { datos: row, clave: adminKey });
   if (error) {
     if (error.code === 'PGRST202') throw new Error('Falta ejecutar supabase/agregar-lenguaje.sql en Supabase');
+    if (!adminKey && error.message.includes('Clave de administrador')) {
+      throw new Error('Supabase no reconoce tu cuenta como administrador: ejecuta supabase/superusuario.sql y vuelve a iniciar sesión');
+    }
     throw new Error(error.message);
   }
   return data as string;

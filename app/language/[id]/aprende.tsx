@@ -1,20 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { AnimatedPressable } from '@/components/animated-pressable';
-import { BackButton } from '@/components/back-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
 import { useCatalog } from '@/contexts/catalog-context';
+import { useUserData } from '@/contexts/user-data-context';
 import { type CodeExample } from '@/data/languages';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useResponsive } from '@/hooks/use-responsive';
+import { canRunLanguage } from '@/services/code-runner';
 
 type TabId = 'instalacion' | 'variables' | 'condicionales' | 'bucles';
 
@@ -33,29 +33,22 @@ export default function LearnScreen() {
   const palette = Colors[colorScheme];
   const router = useRouter();
   const { contentMaxWidth } = useResponsive();
-  const [completed, setCompleted] = useState<Set<number>>(new Set());
+  const { steps: progress, toggleStep: saveStep } = useUserData();
   const [tab, setTab] = useState<TabId>('instalacion');
+  // Pasos completados guardados en el dispositivo (también cuentan para la racha de estudio).
+  const completed = useMemo(() => new Set(progress[id ?? ''] ?? []), [progress, id]);
 
-  if (!language) {
-    return (
-      <SafeAreaView style={[styles.notFound, { backgroundColor: palette.background }]} edges={['top']}>
-        <BackButton fallbackHref="/" />
-        <ThemedText type="subtitle">Lenguaje no encontrado</ThemedText>
-      </SafeAreaView>
-    );
-  }
+  // El layout ya muestra "no encontrado".
+  if (!language) return null;
 
   const toggleStep = (index: number) => {
     if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setCompleted((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) {
-        next.delete(index);
-      } else {
-        next.add(index);
-      }
-      return next;
-    });
+    saveStep(language.id, index);
+  };
+
+  const tryInEditor = (example: TabId) => {
+    if (Platform.OS !== 'web') Haptics.selectionAsync();
+    router.push(`/practicar?lenguaje=${language.id}&ejemplo=${example}`);
   };
 
   const selectTab = (next: TabId) => {
@@ -70,21 +63,15 @@ export default function LearnScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]} edges={['top']}>
+    <>
       <Stack.Screen options={{ title: `Aprende ${language.name}` }} />
       <ScrollView
         contentContainerStyle={[
           styles.content,
           contentMaxWidth ? { maxWidth: contentMaxWidth, alignSelf: 'center', width: '100%' } : undefined,
         ]}>
-        <BackButton fallbackHref={`/language/${language.id}`} />
-
-        <ThemedText type="title" style={{ paddingHorizontal: 16 }}>
-          Aprende {language.name}
-        </ThemedText>
         <ThemedText style={[styles.intro, { paddingHorizontal: 16 }]}>
-          Elige qué quieres aprender: cómo instalarlo, cómo declarar variables, cómo tomar
-          decisiones con condicionales o cómo repetir código con bucles.
+          Instálalo y luego aprende variables, condicionales y bucles. Tu avance se guarda.
         </ThemedText>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabBar}>
@@ -179,6 +166,7 @@ export default function LearnScreen() {
               example={topicByTab[tab]}
               color={language.color}
               borderColor={colorScheme === 'dark' ? '#2a2d2e' : '#ececec'}
+              onTry={canRunLanguage(language.id) ? () => tryInEditor(tab) : undefined}
             />
           </Animated.View>
         )}
@@ -187,7 +175,7 @@ export default function LearnScreen() {
           <AnimatedPressable
             onPress={() => {
               if (Platform.OS !== 'web') Haptics.selectionAsync();
-              router.push(`/language/${language.id}/cursos`);
+              router.replace(`/language/${language.id}/cursos`);
             }}
             style={[styles.actionButton, { backgroundColor: palette.tint }]}>
             <Ionicons name="play-outline" size={18} color={colorScheme === 'dark' ? '#000' : '#fff'} />
@@ -197,7 +185,7 @@ export default function LearnScreen() {
           </AnimatedPressable>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </>
   );
 }
 
@@ -207,12 +195,14 @@ function TopicCard({
   example,
   color,
   borderColor,
+  onTry,
 }: {
   title: string;
   icon: keyof typeof Ionicons.glyphMap;
   example?: CodeExample;
   color: string;
   borderColor: string;
+  onTry?: () => void;
 }) {
   if (!example) return null;
   return (
@@ -231,23 +221,33 @@ function TopicCard({
           {example.code}
         </ThemedText>
       </View>
+      {onTry && (
+        <AnimatedPressable onPress={onTry} style={[styles.tryButton, { borderColor: color }]}>
+          <Ionicons name="play" size={16} color={color} />
+          <ThemedText type="defaultSemiBold" style={{ color }}>
+            Probar en el editor
+          </ThemedText>
+        </AnimatedPressable>
+      )}
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
+  // Espacio extra abajo para el botón flotante "Preguntar a la IA".
   content: {
-    paddingVertical: 16,
-    paddingBottom: 32,
+    paddingTop: 4,
+    paddingBottom: 96,
     gap: 12,
   },
-  notFound: {
-    flex: 1,
+  tryButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1.5,
   },
   intro: {
     opacity: 0.75,

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,12 +13,12 @@ import { useCatalog } from '@/contexts/catalog-context';
 import type { CodeExample, CourseLink, LearnStep } from '@/data/languages';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useResponsive } from '@/hooks/use-responsive';
+import { editLanguage } from '@/services/admin';
 import { addLanguage, type NewLanguage } from '@/services/catalog-api';
-import { sessionStorage } from '@/services/session-storage';
+import { readableOn } from '@/utils/color';
 
 const DANGER = '#d9534f';
 const SUCCESS = '#2e9e5b';
-const ADMIN_KEY_STORAGE = 'admin_key';
 const COLOR_PRESETS = ['#f7df1e', '#3776ab', '#e76f00', '#00599c', '#68217a', '#777bb4', '#7f52ff', '#f05138', '#00add8', '#cc342d', '#3178c6', '#dea584', '#0175c2', '#a8b9cc', '#39457e', '#dc322f'];
 
 type ExampleDraft = { description: string; code: string };
@@ -52,37 +52,38 @@ export default function AddLanguageScreen() {
   const router = useRouter();
   const { contentMaxWidth } = useResponsive();
   const { getLanguageById, reload } = useCatalog();
+  // ?editar=python abre el formulario lleno con ese lenguaje (solo superusuario).
+  const { editar } = useLocalSearchParams<{ editar?: string }>();
+  const [editing] = useState(() => getLanguageById(editar));
+  const example = (value: CodeExample | null | undefined): ExampleDraft => ({ description: value?.description ?? '', code: value?.code ?? '' });
 
-  const [name, setName] = useState('');
-  const [id, setId] = useState('');
-  const [idEdited, setIdEdited] = useState(false);
-  const [tagline, setTagline] = useState('');
-  const [year, setYear] = useState('');
-  const [paradigm, setParadigm] = useState('');
-  const [founders, setFounders] = useState('');
-  const [color, setColor] = useState(COLOR_PRESETS[0]);
-  const [history, setHistory] = useState('');
-  const [curiosity, setCuriosity] = useState('');
-  const [keyFeatures, setKeyFeatures] = useState('');
-  const [useCases, setUseCases] = useState('');
-  const [variables, setVariables] = useState<ExampleDraft>({ description: '', code: '' });
-  const [conditionals, setConditionals] = useState<ExampleDraft>({ description: '', code: '' });
-  const [loops, setLoops] = useState<ExampleDraft>({ description: '', code: '' });
-  const [steps, setSteps] = useState<StepDraft[]>([{ title: '', description: '', code: '' }]);
-  const [courses, setCourses] = useState<CourseDraft[]>([{ title: '', platform: '', url: '' }]);
-  const [adminKey, setAdminKey] = useState('');
+  const [name, setName] = useState(editing?.name ?? '');
+  const [id, setId] = useState(editing?.id ?? '');
+  const [idEdited, setIdEdited] = useState(Boolean(editing));
+  const [tagline, setTagline] = useState(editing?.tagline ?? '');
+  const [year, setYear] = useState(editing ? String(editing.year) : '');
+  const [paradigm, setParadigm] = useState(editing?.paradigm ?? '');
+  const [founders, setFounders] = useState(editing?.founders.join(', ') ?? '');
+  const [color, setColor] = useState(editing?.color ?? COLOR_PRESETS[0]);
+  const [history, setHistory] = useState(editing?.history ?? '');
+  const [curiosity, setCuriosity] = useState(editing?.curiosity ?? '');
+  const [keyFeatures, setKeyFeatures] = useState(editing?.keyFeatures.join('\n') ?? '');
+  const [useCases, setUseCases] = useState(editing?.useCases.join('\n') ?? '');
+  const [variables, setVariables] = useState<ExampleDraft>(() => example(editing?.variablesExample));
+  const [conditionals, setConditionals] = useState<ExampleDraft>(() => example(editing?.conditionalsExample));
+  const [loops, setLoops] = useState<ExampleDraft>(() => example(editing?.loopsExample));
+  const [steps, setSteps] = useState<StepDraft[]>(() =>
+    editing?.steps.length
+      ? editing.steps.map((step) => ({ title: step.title, description: step.description, code: step.code ?? '' }))
+      : [{ title: '', description: '', code: '' }]
+  );
+  const [courses, setCourses] = useState<CourseDraft[]>(() =>
+    editing?.courses.length ? editing.courses.map((course) => ({ ...course })) : [{ title: '', platform: '', url: '' }]
+  );
 
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [createdId, setCreatedId] = useState<string | null>(null);
-
-  // Recuerda la clave en este dispositivo para no escribirla cada vez.
-  useEffect(() => {
-    sessionStorage
-      .getItem(ADMIN_KEY_STORAGE)
-      .then((saved) => saved && setAdminKey(saved))
-      .catch(() => {});
-  }, []);
 
   // Abre el detalle en cuanto el lenguaje nuevo llega al catálogo.
   const created = createdId ? getLanguageById(createdId) : undefined;
@@ -99,7 +100,7 @@ export default function AddLanguageScreen() {
     const yearNumber = Number(year);
     if (!name.trim()) return 'Escribe el nombre del lenguaje.';
     if (!/^[a-z0-9_-]+$/.test(id)) return 'El id solo puede tener minúsculas, números, guiones y guion bajo.';
-    if (getLanguageById(id)) return `Ya existe un lenguaje con el id "${id}".`;
+    if (!editing && getLanguageById(id)) return `Ya existe un lenguaje con el id "${id}".`;
     if (!tagline.trim()) return 'Escribe el lema (frase corta).';
     if (!Number.isInteger(yearNumber) || yearNumber < 1940 || yearNumber > new Date().getFullYear())
       return 'Escribe un año de creación válido.';
@@ -115,7 +116,6 @@ export default function AddLanguageScreen() {
     const filledCourses = courses.filter((course) => course.title.trim() || course.platform.trim() || course.url.trim());
     if (filledCourses.some((course) => !course.title.trim() || !course.platform.trim() || !/^https?:\/\//.test(course.url.trim())))
       return 'Cada curso necesita título, plataforma y un enlace que empiece con http:// o https://.';
-    if (!adminKey) return 'Escribe la clave de administrador.';
 
     return {
       id,
@@ -154,8 +154,15 @@ export default function AddLanguageScreen() {
     setSubmitting(true);
     setError(null);
     try {
-      const newId = await addLanguage(result, adminKey);
-      await sessionStorage.setItem(ADMIN_KEY_STORAGE, adminKey).catch(() => {});
+      if (editing) {
+        await editLanguage(result);
+        if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        reload();
+        router.back();
+        return;
+      }
+      // Solo el superusuario llega a esta pantalla: Supabase lo reconoce por su sesión y no pide clave.
+      const newId = await addLanguage(result, '');
       if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setCreatedId(newId);
       reload();
@@ -173,13 +180,14 @@ export default function AddLanguageScreen() {
     label: string,
     value: string,
     onChange: (value: string) => void,
-    options: { placeholder?: string; multiline?: boolean; code?: boolean; hint?: string; numeric?: boolean } = {}
+    options: { placeholder?: string; multiline?: boolean; code?: boolean; hint?: string; numeric?: boolean; readOnly?: boolean } = {}
   ) => (
     <View style={styles.field}>
       <ThemedText style={styles.label}>{label}</ThemedText>
       <TextInput
         value={value}
         onChangeText={onChange}
+        editable={!options.readOnly}
         placeholder={options.placeholder}
         placeholderTextColor={`${palette.icon}aa`}
         multiline={options.multiline || options.code}
@@ -214,13 +222,15 @@ export default function AddLanguageScreen() {
 
         <View style={styles.header}>
           <View style={[styles.badge, { backgroundColor: /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#999' }]}>
-            <ThemedText style={styles.badgeText} lightColor="#111" darkColor="#111">
+            <ThemedText style={styles.badgeText} lightColor={readableOn(color)} darkColor={readableOn(color)}>
               {(name.trim() || '?').slice(0, 2).toUpperCase()}
             </ThemedText>
           </View>
           <View style={{ flex: 1 }}>
-            <ThemedText type="title">Agregar lenguaje</ThemedText>
-            <ThemedText style={{ opacity: 0.7 }}>Aparecerá en el catálogo de todos los usuarios al instante.</ThemedText>
+            <ThemedText type="title">{editing ? `Editar ${editing.name}` : 'Agregar lenguaje'}</ThemedText>
+            <ThemedText style={{ opacity: 0.7 }}>
+              {editing ? 'Los cambios llegan al instante a todos los usuarios.' : 'Aparecerá en el catálogo de todos los usuarios al instante.'}
+            </ThemedText>
           </View>
         </View>
 
@@ -233,7 +243,9 @@ export default function AddLanguageScreen() {
               setIdEdited(true);
               setId(value.toLowerCase());
             },
-            { placeholder: 'haskell', hint: 'Se usa en la dirección de la página. Se llena solo a partir del nombre.' }
+            editing
+              ? { hint: 'No se puede cambiar: lo usan los puntajes, favoritos y frameworks.', readOnly: true }
+              : { placeholder: 'haskell', hint: 'Se usa en la dirección de la página. Se llena solo a partir del nombre.' }
           )}
           {field('Lema *', tagline, setTagline, { placeholder: 'Ej. Programación funcional pura' })}
           {field('Año de creación *', year, (value) => setYear(value.replace(/[^0-9]/g, '')), {
@@ -331,19 +343,6 @@ export default function AddLanguageScreen() {
           <AddButton label="Agregar curso" onPress={() => setCourses([...courses, { title: '', platform: '', url: '' }])} />
         </Section>
 
-        <Section title="Clave de administrador *" subtitle="La definiste en supabase/agregar-lenguaje.sql." borderColor={borderColor}>
-          <TextInput
-            value={adminKey}
-            onChangeText={setAdminKey}
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
-            placeholder="Clave"
-            placeholderTextColor={`${palette.icon}aa`}
-            style={inputStyle}
-          />
-        </Section>
-
         {error && (
           <View style={[styles.message, { borderColor: `${DANGER}66`, backgroundColor: `${DANGER}1A` }]}>
             <Ionicons name="alert-circle" size={18} color={DANGER} />
@@ -367,7 +366,7 @@ export default function AddLanguageScreen() {
             <Ionicons name="checkmark-circle" size={20} color={palette.background} />
           )}
           <ThemedText type="defaultSemiBold" style={{ color: palette.background }}>
-            Guardar lenguaje
+            {editing ? 'Guardar cambios' : 'Guardar lenguaje'}
           </ThemedText>
         </Pressable>
       </ScrollView>

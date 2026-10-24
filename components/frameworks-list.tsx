@@ -1,9 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { FlatList, Platform, StyleSheet, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useMemo, type ReactElement } from 'react';
+import { FlatList, Platform, StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { AnimatedPressable } from '@/components/animated-pressable';
@@ -15,11 +14,10 @@ import { type Framework } from '@/data/frameworks';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useResponsive } from '@/hooks/use-responsive';
 
-export default function FrameworksScreen() {
-  const colorScheme = useColorScheme() ?? 'light';
-  const palette = Colors[colorScheme];
-  const { numColumns } = useResponsive();
-  const [query, setQuery] = useState('');
+// Lista de frameworks que se muestra dentro del Catálogo (interruptor Lenguajes | Frameworks).
+// Recibe la búsqueda del catálogo y filtra por nombre del framework o de su lenguaje.
+export function FrameworksList({ query, header }: { query: string; header?: ReactElement }) {
+  const { numColumns, contentMaxWidth } = useResponsive();
   const { frameworks, getLanguageById } = useCatalog();
 
   const results = useMemo(() => {
@@ -33,46 +31,29 @@ export default function FrameworksScreen() {
   }, [query, frameworks, getLanguageById]);
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]} edges={['top']}>
-      <View style={styles.centerWrap}>
-        <View style={styles.header}>
-          <ThemedText type="title">Frameworks</ThemedText>
-          <ThemedText style={{ opacity: 0.7 }}>Herramientas construidas sobre cada lenguaje</ThemedText>
-        </View>
-
-        <View style={[styles.searchBar, { borderColor: palette.icon }]}>
-          <Ionicons name="search" size={18} color={palette.icon} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Buscar framework o lenguaje..."
-            placeholderTextColor={palette.icon}
-            style={[styles.searchInput, { color: palette.text }]}
-          />
-        </View>
-
-        <ThemedText style={styles.resultsCount}>
-          {results.length} {results.length === 1 ? 'framework' : 'frameworks'}
-        </ThemedText>
-      </View>
-
-      <FlatList
-        key={numColumns}
-        data={results}
-        numColumns={numColumns}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        columnWrapperStyle={numColumns > 1 ? styles.row : undefined}
-        renderItem={({ item, index }) => (
-          <FrameworkCard framework={item} index={index} flex={numColumns > 1} />
-        )}
-        ListEmptyComponent={
-          <ThemedText style={{ textAlign: 'center', marginTop: 32, opacity: 0.6 }}>
-            No se encontró ningún framework. Intenta con otro nombre.
+    <FlatList
+      key={numColumns}
+      data={results}
+      numColumns={numColumns}
+      keyExtractor={(item) => item.id}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={[styles.list, contentMaxWidth ? { maxWidth: contentMaxWidth, alignSelf: 'center', width: '100%' } : undefined]}
+      columnWrapperStyle={numColumns > 1 ? styles.row : undefined}
+      ListHeaderComponent={
+        <View style={{ gap: 8, marginBottom: 4 }}>
+          {header}
+          <ThemedText style={styles.resultsCount}>
+            {results.length} {results.length === 1 ? 'framework' : 'frameworks'}
           </ThemedText>
-        }
-      />
-    </SafeAreaView>
+        </View>
+      }
+      renderItem={({ item, index }) => <FrameworkCard framework={item} index={index} flex={numColumns > 1} />}
+      ListEmptyComponent={
+        <ThemedText style={{ textAlign: 'center', marginTop: 32, opacity: 0.6 }}>
+          No se encontró ningún framework. Intenta con otro nombre.
+        </ThemedText>
+      }
+    />
   );
 }
 
@@ -120,38 +101,8 @@ function FrameworkCard({ framework, index, flex }: { framework: Framework; index
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  centerWrap: {
-    width: '100%',
-    alignSelf: 'center',
-  },
-  header: {
-    gap: 2,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 16,
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-  },
   resultsCount: {
-    paddingHorizontal: 16,
-    marginBottom: 8,
-    opacity: 0.5,
+    opacity: 0.6,
     fontSize: 13,
   },
   list: {

@@ -2,6 +2,47 @@
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
+## Configurar Supabase (MiApp54)
+
+Ejecuta los archivos de `supabase/` en **SQL Editor → Run**, en este orden:
+
+1. `schema-y-datos.sql`, `quiz-scores.sql`, `ai-chat.sql`, `realtime.sql`
+2. `agregar-lenguaje.sql`
+3. `comunidad.sql` (favoritos, apodos y ranking del quiz)
+4. `cuentas.sql` (nombre de cada cuenta, roles, usuarios, editar y borrar lenguajes)
+5. `superusuario.sql` (antes, sigue los dos pasos que explica al inicio del archivo)
+6. `clases-retos-avisos.sql` (modo profesor, materiales, retos semanales y avisos)
+
+Lo que consume el compañero no cambia: su usuario sigue entrando y `languages` y `frameworks`
+conservan sus columnas y su política de lectura.
+
+### Registro (Authentication → Sign In / Providers en el panel de Supabase)
+
+- **Confirm email:** desactivado. Así la cuenta entra al instante, sin correos de confirmación.
+- **Allow new users to sign up** y **Allow anonymous sign-ins:** activados (el catálogo se lee antes de iniciar sesión).
+
+El registro pide nombre, correo (basta con que tenga @) y contraseña de al menos 8 caracteres.
+
+### Roles
+
+- **Estudiante:** cualquiera que se registra.
+- **Profesor:** lo nombra el superusuario en *Admin → Usuarios*. Crea clases, ve el progreso de sus alumnos,
+  sube videos, enlaces y notas, y publica retos.
+- **Superusuario:** regístrate en la app con tu correo, pon ese correo en `superusuario.sql` y ejecútalo.
+  Ve la pestaña *Admin* (reportes, usuarios y contenido), y agrega, edita y borra lenguajes.
+  Los cambios llegan al instante a todos (Realtime) y se envía un aviso.
+
+### Avisos con la app cerrada
+
+Las notificaciones push usan el servicio de Expo y la extensión `pg_net` (la activa `clases-retos-avisos.sql`).
+Solo llegan a una app instalada o a un *development build*; en Expo Go los avisos llegan por Realtime con la app abierta.
+
+**Quiz generado con IA:** vuelve a desplegar la Edge Function con el código de
+`supabase/functions/asistente-ia` (la app la llama `swift-worker`).
+
+**Practicar código:** usa la API pública de [Piston](https://github.com/engineer-man/piston). Si deja de responder,
+levanta tu propio Piston y pon su URL en `EXPO_PUBLIC_CODE_RUNNER_URL` dentro de `.env`.
+
 ## Get started
 
 1. Install dependencies

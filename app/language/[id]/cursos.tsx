@@ -2,17 +2,19 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { Platform, ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AnimatedPressable } from '@/components/animated-pressable';
-import { BackButton } from '@/components/back-button';
+import { MaterialForm, MaterialList } from '@/components/materials';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Colors } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth-context';
 import { useCatalog } from '@/contexts/catalog-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useResponsive } from '@/hooks/use-responsive';
+import { getLanguageMaterials, type Material } from '@/services/classes';
 
 export default function CoursesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -21,15 +23,25 @@ export default function CoursesScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const palette = Colors[colorScheme];
   const { contentMaxWidth } = useResponsive();
+  const { isTeacher } = useAuth();
+  const [materials, setMaterials] = useState<Material[] | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [version, setVersion] = useState(0);
 
-  if (!language) {
-    return (
-      <SafeAreaView style={[styles.notFound, { backgroundColor: palette.background }]} edges={['top']}>
-        <BackButton fallbackHref="/" />
-        <ThemedText type="subtitle">Lenguaje no encontrado</ThemedText>
-      </SafeAreaView>
-    );
-  }
+  // Videos, enlaces y notas que los profesores publicaron "para todos" en este lenguaje.
+  useEffect(() => {
+    if (!id) return;
+    let active = true;
+    getLanguageMaterials(id)
+      .then((list) => active && setMaterials(list))
+      .catch(() => active && setMaterials([]));
+    return () => {
+      active = false;
+    };
+  }, [id, version]);
+
+  // El layout ya muestra "no encontrado".
+  if (!language) return null;
 
   const openCourse = async (url: string) => {
     if (Platform.OS !== 'web') Haptics.selectionAsync();
@@ -37,16 +49,40 @@ export default function CoursesScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]} edges={['top']}>
+    <>
       <Stack.Screen options={{ title: `Cursos de ${language.name}` }} />
       <ScrollView
         contentContainerStyle={[
           styles.content,
           contentMaxWidth ? { maxWidth: contentMaxWidth, alignSelf: 'center', width: '100%' } : undefined,
         ]}>
-        <BackButton fallbackHref={`/language/${language.id}`} />
+        {(isTeacher || (materials && materials.length > 0)) && (
+          <ThemedView style={[styles.teacherCard, { borderColor: colorScheme === 'dark' ? '#2a2d2e' : '#ececec' }]}>
+            <View style={styles.teacherHeader}>
+              <ThemedText type="subtitle" style={{ flex: 1 }}>
+                Material de profesores
+              </ThemedText>
+              {isTeacher && (
+                <Pressable onPress={() => setShowForm(true)} hitSlop={8}>
+                  <ThemedText type="defaultSemiBold" style={{ color: palette.tint }}>
+                    + Agregar
+                  </ThemedText>
+                </Pressable>
+              )}
+            </View>
+            {!materials ? (
+              <ActivityIndicator color={palette.tint} />
+            ) : (
+              <MaterialList
+                materials={materials}
+                onChanged={() => setVersion((v) => v + 1)}
+                emptyText={`Publica un video o enlace para todos los que estudian ${language.name}.`}
+              />
+            )}
+          </ThemedView>
+        )}
 
-        <ThemedText type="title" style={{ paddingHorizontal: 16 }}>
+        <ThemedText type="subtitle" style={{ paddingHorizontal: 16 }}>
           Sigue aprendiendo
         </ThemedText>
         <ThemedText style={[styles.intro, { paddingHorizontal: 16 }]}>
@@ -77,23 +113,18 @@ export default function CoursesScreen() {
           </ThemedText>
         </ThemedView>
       </ScrollView>
-    </SafeAreaView>
+      {isTeacher && (
+        <MaterialForm visible={showForm} onClose={() => setShowForm(false)} onSaved={() => setVersion((v) => v + 1)} defaultLanguageId={language.id} />
+      )}
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
   content: {
-    paddingVertical: 16,
-    paddingBottom: 32,
+    paddingTop: 4,
+    paddingBottom: 96,
     gap: 12,
-  },
-  notFound: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   intro: {
     opacity: 0.75,
@@ -117,6 +148,18 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  teacherCard: {
+    marginHorizontal: 16,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: 6,
+  },
+  teacherHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   tipCard: {
     marginHorizontal: 16,

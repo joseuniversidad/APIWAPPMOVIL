@@ -23,6 +23,9 @@ const MAPPING = {
   'hammer.fill': 'build',
   'cloud.fill': 'cloud',
   sparkles: 'auto-awesome',
+  'person.crop.circle.fill': 'account-circle',
+  'checkmark.shield.fill': 'admin-panel-settings',
+  'graduationcap.fill': 'school',
 } as IconMapping;
 
 /**

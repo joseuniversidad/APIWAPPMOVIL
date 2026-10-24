@@ -69,7 +69,7 @@ export default function FrameworkDetailScreen() {
           styles.content,
           contentMaxWidth ? { maxWidth: contentMaxWidth, alignSelf: 'center', width: '100%' } : undefined,
         ]}>
-        <BackButton fallbackHref="/frameworks" />
+        <BackButton fallbackHref="/" />
 
         <Animated.View entering={FadeIn.duration(300)} style={[styles.banner, { backgroundColor: framework.color }]}>
           <ThemedText style={styles.bannerText} lightColor="#fff" darkColor="#fff">

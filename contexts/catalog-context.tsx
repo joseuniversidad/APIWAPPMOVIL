@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { FRAMEWORKS, type Framework } from '@/data/frameworks';
@@ -5,12 +6,18 @@ import { LANGUAGES, type ProgrammingLanguage } from '@/data/languages';
 import { fetchCatalog, subscribeToCatalogChanges } from '@/services/catalog-api';
 import { isSupabaseConfigured } from '@/services/supabase';
 
-export type CatalogSource = 'local' | 'supabase';
+// local: datos incluidos en la app · cache: última copia descargada (sin conexión) · supabase: en vivo.
+export type CatalogSource = 'local' | 'cache' | 'supabase';
+
+const CACHE_KEY = 'catalog_cache';
+type CachedCatalog = { languages: ProgrammingLanguage[]; frameworks: Framework[]; savedAt: string };
 
 type CatalogContextValue = {
   languages: ProgrammingLanguage[];
   frameworks: Framework[];
   source: CatalogSource;
+  // Fecha de la última copia guardada en el dispositivo.
+  cachedAt: string | null;
   loading: boolean;
   error: string | null;
   reload: () => void;
@@ -38,6 +45,21 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(isSupabaseConfigured());
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [cachedAt, setCachedAt] = useState<string | null>(null);
+
+  // Modo sin conexión: muestra la última copia descargada mientras llega (o si no llega) la de Supabase.
+  useEffect(() => {
+    AsyncStorage.getItem(CACHE_KEY)
+      .then((raw) => {
+        if (!raw) return;
+        const cached = JSON.parse(raw) as CachedCatalog;
+        setCachedAt(cached.savedAt);
+        setState((current) =>
+          current.source === 'supabase' ? current : { languages: cached.languages, frameworks: cached.frameworks, source: 'cache' }
+        );
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
@@ -45,12 +67,13 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     fetchCatalog()
       .then((data) => {
         if (!active) return;
-        setState({
-          languages: sortLike(data.languages, LANGUAGES),
-          frameworks: sortLike(data.frameworks, FRAMEWORKS),
-          source: 'supabase',
-        });
+        const languages = sortLike(data.languages, LANGUAGES);
+        const frameworks = sortLike(data.frameworks, FRAMEWORKS);
+        setState({ languages, frameworks, source: 'supabase' });
         setError(null);
+        const savedAt = new Date().toISOString();
+        setCachedAt(savedAt);
+        AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ languages, frameworks, savedAt } satisfies CachedCatalog)).catch(() => {});
       })
       .catch((e) => active && setError(e instanceof Error ? e.message : 'No se pudo leer Supabase'))
       .finally(() => active && setLoading(false));
@@ -82,6 +105,7 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   const value = useMemo<CatalogContextValue>(
     () => ({
       ...state,
+      cachedAt,
       loading,
       error,
       reload,
@@ -89,7 +113,7 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       getFrameworkById: (id) => state.frameworks.find((framework) => framework.id === id),
       getFrameworksByLanguage: (languageId) => state.frameworks.filter((framework) => framework.languageId === languageId),
     }),
-    [state, loading, error, reload]
+    [state, cachedAt, loading, error, reload]
   );
 
   return <CatalogContext.Provider value={value}>{children}</CatalogContext.Provider>;
